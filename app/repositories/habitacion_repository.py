@@ -42,9 +42,12 @@ class HabitacionRepository:
         tipo: Optional[str] = None
     ) -> List[Habitacion]:
         # Habitaciones con reservas en conflicto
+        # Filtrar reservas que no estén canceladas y que tengan conflicto de fechas
+        from sqlalchemy import cast, String
+        estado_cancelada_value = EstadoReserva.CANCELADA.value
         habitaciones_ocupadas = self.db.query(Reserva.habitacion_id).filter(
             and_(
-                Reserva.estado != EstadoReserva.CANCELADA,
+                cast(Reserva.estado, String) != estado_cancelada_value,
                 or_(
                     and_(Reserva.fecha_entrada <= fecha_entrada, Reserva.fecha_salida > fecha_entrada),
                     and_(Reserva.fecha_entrada < fecha_salida, Reserva.fecha_salida >= fecha_salida),
@@ -52,11 +55,15 @@ class HabitacionRepository:
                 )
             )
         ).distinct()
+        
+        habitaciones_ocupadas_ids = [row[0] for row in habitaciones_ocupadas]
 
         query = self.db.query(Habitacion).filter(
-            Habitacion.disponible == True,
-            ~Habitacion.id.in_(habitaciones_ocupadas)
+            Habitacion.disponible == True
         )
+        
+        if habitaciones_ocupadas_ids:
+            query = query.filter(~Habitacion.id.in_(habitaciones_ocupadas_ids))
 
         if capacidad:
             query = query.filter(Habitacion.capacidad >= capacidad)

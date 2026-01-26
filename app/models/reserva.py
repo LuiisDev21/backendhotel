@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime, Numeric, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime, Numeric
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 from app.core.database import Base
+from app.core.enum_type import EnumType
 
 
 class EstadoReserva(str, enum.Enum):
@@ -22,7 +23,7 @@ class Reserva(Base):
     fecha_salida = Column(Date, nullable=False)
     numero_huespedes = Column(Integer, nullable=False)
     precio_total = Column(Numeric(10, 2), nullable=False)
-    estado = Column(SQLEnum(EstadoReserva), default=EstadoReserva.PENDIENTE)
+    estado = Column(EnumType(EstadoReserva), default=EstadoReserva.PENDIENTE)
     notas = Column(String, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
