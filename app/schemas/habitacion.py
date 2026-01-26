@@ -1,0 +1,33 @@
+from pydantic import BaseModel
+from typing import Optional
+from decimal import Decimal
+from datetime import datetime
+
+
+class HabitacionBase(BaseModel):
+    numero: str
+    tipo: str
+    descripcion: Optional[str] = None
+    capacidad: int
+    precio_por_noche: Decimal
+    disponible: bool = True
+
+
+class HabitacionCreate(HabitacionBase):
+    pass
+
+
+class HabitacionUpdate(BaseModel):
+    tipo: Optional[str] = None
+    descripcion: Optional[str] = None
+    capacidad: Optional[int] = None
+    precio_por_noche: Optional[Decimal] = None
+    disponible: Optional[bool] = None
+
+
+class HabitacionResponse(HabitacionBase):
+    id: int
+    fecha_creacion: datetime
+
+    class Config:
+        from_attributes = True
