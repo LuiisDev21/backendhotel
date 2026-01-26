@@ -4,33 +4,33 @@ from app.models.usuario import Usuario
 
 
 class UsuarioRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.SesionBD = SesionBD
 
-    def get_by_id(self, usuario_id: int) -> Optional[Usuario]:
-        return self.db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    def ObtenerPorId(self, IdUsuario: int) -> Optional[Usuario]:
+        return self.SesionBD.query(Usuario).filter(Usuario.id == IdUsuario).first()
 
-    def get_by_email(self, email: str) -> Optional[Usuario]:
+    def ObtenerPorEmail(self, Email: str) -> Optional[Usuario]:
         try:
-            return self.db.query(Usuario).filter(Usuario.email == email).first()
+            return self.SesionBD.query(Usuario).filter(Usuario.email == Email).first()
         except Exception:
-            self.db.rollback()
+            self.SesionBD.rollback()
             raise
 
-    def create(self, usuario: Usuario) -> Usuario:
+    def Crear(self, UsuarioNuevo: Usuario) -> Usuario:
         try:
-            self.db.add(usuario)
-            self.db.commit()
-            self.db.refresh(usuario)
-            return usuario
+            self.SesionBD.add(UsuarioNuevo)
+            self.SesionBD.commit()
+            self.SesionBD.refresh(UsuarioNuevo)
+            return UsuarioNuevo
         except Exception:
-            self.db.rollback()
+            self.SesionBD.rollback()
             raise
 
-    def update(self, usuario: Usuario) -> Usuario:
-        self.db.commit()
-        self.db.refresh(usuario)
-        return usuario
+    def Actualizar(self, UsuarioActualizado: Usuario) -> Usuario:
+        self.SesionBD.commit()
+        self.SesionBD.refresh(UsuarioActualizado)
+        return UsuarioActualizado
 
-    def get_all(self, skip: int = 0, limit: int = 100):
-        return self.db.query(Usuario).offset(skip).limit(limit).all()
+    def ObtenerTodos(self, Saltar: int = 0, Limite: int = 100):
+        return self.SesionBD.query(Usuario).offset(Saltar).limit(Limite).all()

@@ -11,104 +11,104 @@ import uuid
 
 
 class PagoService:
-    def __init__(self, db: Session):
-        self.repository = PagoRepository(db)
-        self.reserva_repo = ReservaRepository(db)
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.Repositorio = PagoRepository(SesionBD)
+        self.RepositorioReserva = ReservaRepository(SesionBD)
+        self.SesionBD = SesionBD
 
-    def crear_pago(self, pago_data: PagoCreate) -> Pago:
-        reserva = self.reserva_repo.get_by_id(pago_data.reserva_id)
-        if not reserva:
+    def CrearPago(self, DatosPago: PagoCreate) -> Pago:
+        ReservaEncontrada = self.RepositorioReserva.ObtenerPorId(DatosPago.reserva_id)
+        if not ReservaEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reserva no encontrada"
             )
         
-        if self.repository.get_by_reserva(pago_data.reserva_id):
+        if self.Repositorio.ObtenerPorReserva(DatosPago.reserva_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ya existe un pago para esta reserva"
             )
         
-        nuevo_pago = Pago(
-            reserva_id=pago_data.reserva_id,
-            monto=reserva.precio_total,
-            metodo_pago=pago_data.metodo_pago,
+        PagoNuevo = Pago(
+            reserva_id=DatosPago.reserva_id,
+            monto=ReservaEncontrada.precio_total,
+            metodo_pago=DatosPago.metodo_pago,
             estado=EstadoPago.PENDIENTE,
             numero_transaccion=str(uuid.uuid4())
         )
         
-        return self.repository.create(nuevo_pago)
+        return self.Repositorio.Crear(PagoNuevo)
 
-    def obtener_pago(self, pago_id: int) -> Pago:
-        pago = self.repository.get_by_id(pago_id)
-        if not pago:
+    def ObtenerPago(self, IdPago: int) -> Pago:
+        PagoEncontrado = self.Repositorio.ObtenerPorId(IdPago)
+        if not PagoEncontrado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Pago no encontrado"
             )
-        return pago
+        return PagoEncontrado
 
-    def obtener_pago_por_reserva(self, reserva_id: int) -> Pago:
-        pago = self.repository.get_by_reserva(reserva_id)
-        if not pago:
+    def ObtenerPagoPorReserva(self, IdReserva: int) -> Pago:
+        PagoEncontrado = self.Repositorio.ObtenerPorReserva(IdReserva)
+        if not PagoEncontrado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No se encontró pago para esta reserva"
             )
-        return pago
+        return PagoEncontrado
 
-    def listar_pagos(self, skip: int = 0, limit: int = 100) -> List[Pago]:
-        return self.repository.get_all(skip=skip, limit=limit)
+    def ListarPagos(self, Saltar: int = 0, Limite: int = 100) -> List[Pago]:
+        return self.Repositorio.ObtenerTodos(Saltar=Saltar, Limite=Limite)
 
-    def procesar_pago(self, pago_id: int) -> Pago:
-        pago = self.obtener_pago(pago_id)
+    def ProcesarPago(self, IdPago: int) -> Pago:
+        PagoEncontrado = self.ObtenerPago(IdPago)
         
-        if pago.estado == EstadoPago.COMPLETADO:
+        if PagoEncontrado.estado == EstadoPago.COMPLETADO:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El pago ya fue procesado"
             )
         
-        pago.estado = EstadoPago.COMPLETADO
-        pago.fecha_pago = datetime.utcnow()
+        PagoEncontrado.estado = EstadoPago.COMPLETADO
+        PagoEncontrado.fecha_pago = datetime.utcnow()
         
-        reserva = self.reserva_repo.get_by_id(pago.reserva_id)
-        reserva.estado = EstadoReserva.CONFIRMADA
+        ReservaEncontrada = self.RepositorioReserva.ObtenerPorId(PagoEncontrado.reserva_id)
+        ReservaEncontrada.estado = EstadoReserva.CONFIRMADA
         
-        self.db.commit()
-        self.db.refresh(pago)
+        self.SesionBD.commit()
+        self.SesionBD.refresh(PagoEncontrado)
         
-        return pago
+        return PagoEncontrado
 
-    def actualizar_pago(
+    def ActualizarPago(
         self,
-        pago_id: int,
-        pago_data: PagoUpdate
+        IdPago: int,
+        DatosPago: PagoUpdate
     ) -> Pago:
-        pago = self.obtener_pago(pago_id)
-        update_data = pago_data.model_dump(exclude_unset=True)
+        PagoEncontrado = self.ObtenerPago(IdPago)
+        DatosActualizacion = DatosPago.model_dump(exclude_unset=True)
         
-        for field, value in update_data.items():
-            setattr(pago, field, value)
+        for Campo, Valor in DatosActualizacion.items():
+            setattr(PagoEncontrado, Campo, Valor)
         
-        return self.repository.update(pago)
+        return self.Repositorio.Actualizar(PagoEncontrado)
 
-    def reembolsar_pago(self, pago_id: int) -> Pago:
-        pago = self.obtener_pago(pago_id)
+    def ReembolsarPago(self, IdPago: int) -> Pago:
+        PagoEncontrado = self.ObtenerPago(IdPago)
         
-        if pago.estado != EstadoPago.COMPLETADO:
+        if PagoEncontrado.estado != EstadoPago.COMPLETADO:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Solo se pueden reembolsar pagos completados"
             )
         
-        pago.estado = EstadoPago.REEMBOLSADO
+        PagoEncontrado.estado = EstadoPago.REEMBOLSADO
         
-        reserva = self.reserva_repo.get_by_id(pago.reserva_id)
-        reserva.estado = EstadoReserva.CANCELADA
+        ReservaEncontrada = self.RepositorioReserva.ObtenerPorId(PagoEncontrado.reserva_id)
+        ReservaEncontrada.estado = EstadoReserva.CANCELADA
         
-        self.db.commit()
-        self.db.refresh(pago)
+        self.SesionBD.commit()
+        self.SesionBD.refresh(PagoEncontrado)
         
-        return pago
+        return PagoEncontrado

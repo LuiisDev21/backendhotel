@@ -1,27 +1,27 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.database import ObtenerSesionBD
+from app.core.security import DecodificarTokenAcceso
 from app.repositories.usuario_repository import UsuarioRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/api/v1/auth/login")
 
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+async def ObtenerUsuarioActual(
+    Token: str = Depends(oauth2_scheme),
+    SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    payload = decode_access_token(token)
-    if payload is None:
+    Payload = DecodificarTokenAcceso(Token)
+    if Payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado. Por favor, inicia sesión nuevamente.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    usuario_id_str = payload.get("sub")
-    if usuario_id_str is None:
+    IdUsuarioStr = Payload.get("sub")
+    if IdUsuarioStr is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido: falta información del usuario",
@@ -29,7 +29,7 @@ async def get_current_user(
         )
     
     try:
-        usuario_id = int(usuario_id_str)
+        IdUsuario = int(IdUsuarioStr)
     except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -37,30 +37,30 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    usuario_repo = UsuarioRepository(db)
-    usuario = usuario_repo.get_by_id(usuario_id)
-    if usuario is None:
+    RepositorioUsuario = UsuarioRepository(SesionBD)
+    UsuarioEncontrado = RepositorioUsuario.ObtenerPorId(IdUsuario)
+    if UsuarioEncontrado is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario no encontrado",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    if not usuario.activo:
+    if not UsuarioEncontrado.activo:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo"
         )
     
-    return usuario
+    return UsuarioEncontrado
 
 
-async def get_current_admin(
-    current_user = Depends(get_current_user)
+async def ObtenerAdministradorActual(
+    UsuarioActual = Depends(ObtenerUsuarioActual)
 ):
-    if not current_user.es_administrador:
+    if not UsuarioActual.es_administrador:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permisos de administrador"
         )
-    return current_user
+    return UsuarioActual

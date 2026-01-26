@@ -8,65 +8,65 @@ from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
 
 
 class HabitacionService:
-    def __init__(self, db: Session):
-        self.repository = HabitacionRepository(db)
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.Repositorio = HabitacionRepository(SesionBD)
+        self.SesionBD = SesionBD
 
-    def crear_habitacion(self, habitacion_data: HabitacionCreate) -> Habitacion:
-        if self.repository.get_by_numero(habitacion_data.numero):
+    def CrearHabitacion(self, DatosHabitacion: HabitacionCreate) -> Habitacion:
+        if self.Repositorio.ObtenerPorNumero(DatosHabitacion.numero):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ya existe una habitación con ese número"
             )
         
-        nueva_habitacion = Habitacion(**habitacion_data.model_dump())
-        return self.repository.create(nueva_habitacion)
+        HabitacionNueva = Habitacion(**DatosHabitacion.model_dump())
+        return self.Repositorio.Crear(HabitacionNueva)
 
-    def obtener_habitacion(self, habitacion_id: int) -> Habitacion:
-        habitacion = self.repository.get_by_id(habitacion_id)
-        if not habitacion:
+    def ObtenerHabitacion(self, IdHabitacion: int) -> Habitacion:
+        HabitacionEncontrada = self.Repositorio.ObtenerPorId(IdHabitacion)
+        if not HabitacionEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Habitación no encontrada"
             )
-        return habitacion
+        return HabitacionEncontrada
 
-    def listar_habitaciones(self, skip: int = 0, limit: int = 100) -> List[Habitacion]:
-        return self.repository.get_all(skip=skip, limit=limit)
+    def ListarHabitaciones(self, Saltar: int = 0, Limite: int = 100) -> List[Habitacion]:
+        return self.Repositorio.ObtenerTodas(Saltar=Saltar, Limite=Limite)
 
-    def buscar_disponibles(
+    def BuscarDisponibles(
         self,
-        fecha_entrada: date,
-        fecha_salida: date,
-        capacidad: Optional[int] = None,
-        tipo: Optional[str] = None
+        FechaEntrada: date,
+        FechaSalida: date,
+        Capacidad: Optional[int] = None,
+        Tipo: Optional[str] = None
     ) -> List[Habitacion]:
-        if fecha_entrada >= fecha_salida:
+        if FechaEntrada >= FechaSalida:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La fecha de entrada debe ser anterior a la fecha de salida"
             )
         
-        return self.repository.buscar_disponibles(
-            fecha_entrada=fecha_entrada,
-            fecha_salida=fecha_salida,
-            capacidad=capacidad,
-            tipo=tipo
+        return self.Repositorio.BuscarDisponibles(
+            FechaEntrada=FechaEntrada,
+            FechaSalida=FechaSalida,
+            Capacidad=Capacidad,
+            Tipo=Tipo
         )
 
-    def actualizar_habitacion(
+    def ActualizarHabitacion(
         self,
-        habitacion_id: int,
-        habitacion_data: HabitacionUpdate
+        IdHabitacion: int,
+        DatosHabitacion: HabitacionUpdate
     ) -> Habitacion:
-        habitacion = self.obtener_habitacion(habitacion_id)
-        update_data = habitacion_data.model_dump(exclude_unset=True)
+        HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
+        DatosActualizacion = DatosHabitacion.model_dump(exclude_unset=True)
         
-        for field, value in update_data.items():
-            setattr(habitacion, field, value)
+        for Campo, Valor in DatosActualizacion.items():
+            setattr(HabitacionEncontrada, Campo, Valor)
         
-        return self.repository.update(habitacion)
+        return self.Repositorio.Actualizar(HabitacionEncontrada)
 
-    def eliminar_habitacion(self, habitacion_id: int):
-        habitacion = self.obtener_habitacion(habitacion_id)
-        self.repository.delete(habitacion)
+    def EliminarHabitacion(self, IdHabitacion: int):
+        HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
+        self.Repositorio.Eliminar(HabitacionEncontrada)

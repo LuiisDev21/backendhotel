@@ -24,7 +24,7 @@ app.include_router(pagos.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
-def root():
+def Raiz():
     return {
         "message": "Sistema de Reservas de Hotel API",
         "version": "1.0.0",
@@ -33,5 +33,5 @@ def root():
 
 
 @app.get("/health")
-def health_check():
+def VerificarSalud():
     return {"status": "ok"}

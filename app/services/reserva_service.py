@@ -11,133 +11,133 @@ from app.schemas.reserva import ReservaCreate, ReservaUpdate
 
 
 class ReservaService:
-    def __init__(self, db: Session):
-        self.repository = ReservaRepository(db)
-        self.habitacion_repo = HabitacionRepository(db)
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.Repositorio = ReservaRepository(SesionBD)
+        self.RepositorioHabitacion = HabitacionRepository(SesionBD)
+        self.SesionBD = SesionBD
 
-    def calcular_precio_total(
+    def CalcularPrecioTotal(
         self,
-        habitacion: Habitacion,
-        fecha_entrada: date,
-        fecha_salida: date
+        Habitacion: Habitacion,
+        FechaEntrada: date,
+        FechaSalida: date
     ) -> Decimal:
-        num_noches = (fecha_salida - fecha_entrada).days
-        if num_noches <= 0:
+        NumeroNoches = (FechaSalida - FechaEntrada).days
+        if NumeroNoches <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La fecha de salida debe ser posterior a la fecha de entrada"
             )
-        return Decimal(str(habitacion.precio_por_noche)) * Decimal(str(num_noches))
+        return Decimal(str(Habitacion.precio_por_noche)) * Decimal(str(NumeroNoches))
 
-    def crear_reserva(
+    def CrearReserva(
         self,
-        usuario_id: int,
-        reserva_data: ReservaCreate
+        IdUsuario: int,
+        DatosReserva: ReservaCreate
     ) -> Reserva:
-        habitacion = self.habitacion_repo.get_by_id(reserva_data.habitacion_id)
-        if not habitacion:
+        HabitacionEncontrada = self.RepositorioHabitacion.ObtenerPorId(DatosReserva.habitacion_id)
+        if not HabitacionEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Habitación no encontrada"
             )
         
-        if not habitacion.disponible:
+        if not HabitacionEncontrada.disponible:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La habitación no está disponible"
             )
         
-        if reserva_data.numero_huespedes > habitacion.capacidad:
+        if DatosReserva.numero_huespedes > HabitacionEncontrada.capacidad:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"La habitación solo puede alojar {habitacion.capacidad} huéspedes"
+                detail=f"La habitación solo puede alojar {HabitacionEncontrada.capacidad} huéspedes"
             )
         
-        disponibles = self.habitacion_repo.buscar_disponibles(
-            reserva_data.fecha_entrada,
-            reserva_data.fecha_salida
+        HabitacionesDisponibles = self.RepositorioHabitacion.BuscarDisponibles(
+            DatosReserva.fecha_entrada,
+            DatosReserva.fecha_salida
         )
         
-        if habitacion not in disponibles:
+        if HabitacionEncontrada not in HabitacionesDisponibles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La habitación no está disponible en las fechas seleccionadas"
             )
         
-        precio_total = self.calcular_precio_total(
-            habitacion,
-            reserva_data.fecha_entrada,
-            reserva_data.fecha_salida
+        PrecioTotal = self.CalcularPrecioTotal(
+            HabitacionEncontrada,
+            DatosReserva.fecha_entrada,
+            DatosReserva.fecha_salida
         )
         
-        nueva_reserva = Reserva(
-            usuario_id=usuario_id,
-            habitacion_id=reserva_data.habitacion_id,
-            fecha_entrada=reserva_data.fecha_entrada,
-            fecha_salida=reserva_data.fecha_salida,
-            numero_huespedes=reserva_data.numero_huespedes,
-            precio_total=precio_total,
-            notas=reserva_data.notas,
+        ReservaNueva = Reserva(
+            usuario_id=IdUsuario,
+            habitacion_id=DatosReserva.habitacion_id,
+            fecha_entrada=DatosReserva.fecha_entrada,
+            fecha_salida=DatosReserva.fecha_salida,
+            numero_huespedes=DatosReserva.numero_huespedes,
+            precio_total=PrecioTotal,
+            notas=DatosReserva.notas,
             estado=EstadoReserva.PENDIENTE
         )
         
-        return self.repository.create(nueva_reserva)
+        return self.Repositorio.Crear(ReservaNueva)
 
-    def obtener_reserva(self, reserva_id: int) -> Reserva:
-        reserva = self.repository.get_by_id(reserva_id)
-        if not reserva:
+    def ObtenerReserva(self, IdReserva: int) -> Reserva:
+        ReservaEncontrada = self.Repositorio.ObtenerPorId(IdReserva)
+        if not ReservaEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Reserva no encontrada"
             )
-        return reserva
+        return ReservaEncontrada
 
-    def listar_reservas_usuario(
+    def ListarReservasUsuario(
         self,
-        usuario_id: int,
-        skip: int = 0,
-        limit: int = 100
+        IdUsuario: int,
+        Saltar: int = 0,
+        Limite: int = 100
     ) -> List[Reserva]:
-        return self.repository.get_by_usuario(usuario_id, skip=skip, limit=limit)
+        return self.Repositorio.ObtenerPorUsuario(IdUsuario, Saltar=Saltar, Limite=Limite)
 
-    def listar_todas_reservas(self, skip: int = 0, limit: int = 100) -> List[Reserva]:
-        return self.repository.get_all(skip=skip, limit=limit)
+    def ListarTodasReservas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
+        return self.Repositorio.ObtenerTodas(Saltar=Saltar, Limite=Limite)
 
-    def actualizar_reserva(
+    def ActualizarReserva(
         self,
-        reserva_id: int,
-        reserva_data: ReservaUpdate
+        IdReserva: int,
+        DatosReserva: ReservaUpdate
     ) -> Reserva:
-        reserva = self.obtener_reserva(reserva_id)
-        update_data = reserva_data.model_dump(exclude_unset=True)
+        ReservaEncontrada = self.ObtenerReserva(IdReserva)
+        DatosActualizacion = DatosReserva.model_dump(exclude_unset=True)
         
-        if "fecha_entrada" in update_data or "fecha_salida" in update_data:
-            fecha_entrada = update_data.get("fecha_entrada", reserva.fecha_entrada)
-            fecha_salida = update_data.get("fecha_salida", reserva.fecha_salida)
+        if "fecha_entrada" in DatosActualizacion or "fecha_salida" in DatosActualizacion:
+            FechaEntrada = DatosActualizacion.get("fecha_entrada", ReservaEncontrada.fecha_entrada)
+            FechaSalida = DatosActualizacion.get("fecha_salida", ReservaEncontrada.fecha_salida)
             
-            habitacion = self.habitacion_repo.get_by_id(reserva.habitacion_id)
-            disponibles = self.habitacion_repo.buscar_disponibles(fecha_entrada, fecha_salida)
+            HabitacionEncontrada = self.RepositorioHabitacion.ObtenerPorId(ReservaEncontrada.habitacion_id)
+            HabitacionesDisponibles = self.RepositorioHabitacion.BuscarDisponibles(FechaEntrada, FechaSalida)
             
-            if habitacion not in disponibles:
+            if HabitacionEncontrada not in HabitacionesDisponibles:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="La habitación no está disponible en las nuevas fechas"
                 )
             
-            reserva.precio_total = self.calcular_precio_total(habitacion, fecha_entrada, fecha_salida)
+            ReservaEncontrada.precio_total = self.CalcularPrecioTotal(HabitacionEncontrada, FechaEntrada, FechaSalida)
         
-        for field, value in update_data.items():
-            setattr(reserva, field, value)
+        for Campo, Valor in DatosActualizacion.items():
+            setattr(ReservaEncontrada, Campo, Valor)
         
-        return self.repository.update(reserva)
+        return self.Repositorio.Actualizar(ReservaEncontrada)
 
-    def cancelar_reserva(self, reserva_id: int) -> Reserva:
-        reserva = self.obtener_reserva(reserva_id)
-        if reserva.estado == EstadoReserva.CANCELADA:
+    def CancelarReserva(self, IdReserva: int) -> Reserva:
+        ReservaEncontrada = self.ObtenerReserva(IdReserva)
+        if ReservaEncontrada.estado == EstadoReserva.CANCELADA:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La reserva ya está cancelada"
             )
-        reserva.estado = EstadoReserva.CANCELADA
-        return self.repository.update(reserva)
+        ReservaEncontrada.estado = EstadoReserva.CANCELADA
+        return self.Repositorio.Actualizar(ReservaEncontrada)

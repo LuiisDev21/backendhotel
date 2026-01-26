@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
-from app.core.database import get_db
-from app.core.dependencies import get_current_user, get_current_admin
+from app.core.database import ObtenerSesionBD
+from app.core.dependencies import ObtenerUsuarioActual, ObtenerAdministradorActual
 from app.schemas.pago import PagoCreate, PagoUpdate, PagoResponse
 from app.services.pago_service import PagoService
 from app.models.usuario import Usuario
@@ -11,84 +11,84 @@ router = APIRouter(prefix="/pagos", tags=["Pagos"])
 
 
 @router.post("", response_model=PagoResponse, status_code=201)
-def crear_pago(
-    pago_data: PagoCreate,
-    current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
+def CrearPago(
+    DatosPago: PagoCreate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuarioActual),
+    SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    service = PagoService(db)
-    pago = service.crear_pago(pago_data)
+    Servicio = PagoService(SesionBD)
+    PagoCreado = Servicio.CrearPago(DatosPago)
     
     from app.repositories.reserva_repository import ReservaRepository
-    reserva_repo = ReservaRepository(db)
-    reserva = reserva_repo.get_by_id(pago_data.reserva_id)
+    RepositorioReserva = ReservaRepository(SesionBD)
+    ReservaEncontrada = RepositorioReserva.ObtenerPorId(DatosPago.reserva_id)
     
-    if not current_user.es_administrador and reserva.usuario_id != current_user.id:
+    if not UsuarioActual.es_administrador and ReservaEncontrada.usuario_id != UsuarioActual.id:
         from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permiso para crear un pago para esta reserva"
         )
     
-    return pago
+    return PagoCreado
 
 
-@router.get("", response_model=List[PagoResponse], dependencies=[Depends(get_current_admin)])
-def listar_pagos(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
+@router.get("", response_model=List[PagoResponse], dependencies=[Depends(ObtenerAdministradorActual)])
+def ListarPagos(
+    Saltar: int = Query(0, ge=0),
+    Limite: int = Query(100, ge=1, le=100),
+    SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    service = PagoService(db)
-    return service.listar_pagos(skip=skip, limit=limit)
+    Servicio = PagoService(SesionBD)
+    return Servicio.ListarPagos(Saltar=Saltar, Limite=Limite)
 
 
 @router.get("/reserva/{reserva_id}", response_model=PagoResponse)
-def obtener_pago_por_reserva(
+def ObtenerPagoPorReserva(
     reserva_id: int,
-    current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    UsuarioActual: Usuario = Depends(ObtenerUsuarioActual),
+    SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    service = PagoService(db)
-    pago = service.obtener_pago_por_reserva(reserva_id)
+    Servicio = PagoService(SesionBD)
+    PagoEncontrado = Servicio.ObtenerPagoPorReserva(reserva_id)
     
     from app.repositories.reserva_repository import ReservaRepository
-    reserva_repo = ReservaRepository(db)
-    reserva = reserva_repo.get_by_id(reserva_id)
+    RepositorioReserva = ReservaRepository(SesionBD)
+    ReservaEncontrada = RepositorioReserva.ObtenerPorId(reserva_id)
     
-    if not current_user.es_administrador and reserva.usuario_id != current_user.id:
+    if not UsuarioActual.es_administrador and ReservaEncontrada.usuario_id != UsuarioActual.id:
         from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tiene permiso para ver este pago"
         )
     
-    return pago
+    return PagoEncontrado
 
 
-@router.get("/{pago_id}", response_model=PagoResponse, dependencies=[Depends(get_current_admin)])
-def obtener_pago(pago_id: int, db: Session = Depends(get_db)):
-    service = PagoService(db)
-    return service.obtener_pago(pago_id)
+@router.get("/{pago_id}", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+def ObtenerPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
+    Servicio = PagoService(SesionBD)
+    return Servicio.ObtenerPago(pago_id)
 
 
-@router.post("/{pago_id}/procesar", response_model=PagoResponse, dependencies=[Depends(get_current_admin)])
-def procesar_pago(pago_id: int, db: Session = Depends(get_db)):
-    service = PagoService(db)
-    return service.procesar_pago(pago_id)
+@router.post("/{pago_id}/procesar", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+def ProcesarPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
+    Servicio = PagoService(SesionBD)
+    return Servicio.ProcesarPago(pago_id)
 
 
-@router.put("/{pago_id}", response_model=PagoResponse, dependencies=[Depends(get_current_admin)])
-def actualizar_pago(
+@router.put("/{pago_id}", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+def ActualizarPago(
     pago_id: int,
-    pago_data: PagoUpdate,
-    db: Session = Depends(get_db)
+    DatosPago: PagoUpdate,
+    SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    service = PagoService(db)
-    return service.actualizar_pago(pago_id, pago_data)
+    Servicio = PagoService(SesionBD)
+    return Servicio.ActualizarPago(pago_id, DatosPago)
 
 
-@router.post("/{pago_id}/reembolsar", response_model=PagoResponse, dependencies=[Depends(get_current_admin)])
-def reembolsar_pago(pago_id: int, db: Session = Depends(get_db)):
-    service = PagoService(db)
-    return service.reembolsar_pago(pago_id)
+@router.post("/{pago_id}/reembolsar", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+def ReembolsarPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
+    Servicio = PagoService(SesionBD)
+    return Servicio.ReembolsarPago(pago_id)

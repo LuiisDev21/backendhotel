@@ -7,68 +7,66 @@ from app.models.reserva import Reserva, EstadoReserva
 
 
 class HabitacionRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.SesionBD = SesionBD
 
-    def get_by_id(self, habitacion_id: int) -> Optional[Habitacion]:
-        return self.db.query(Habitacion).filter(Habitacion.id == habitacion_id).first()
+    def ObtenerPorId(self, IdHabitacion: int) -> Optional[Habitacion]:
+        return self.SesionBD.query(Habitacion).filter(Habitacion.id == IdHabitacion).first()
 
-    def get_by_numero(self, numero: str) -> Optional[Habitacion]:
-        return self.db.query(Habitacion).filter(Habitacion.numero == numero).first()
+    def ObtenerPorNumero(self, Numero: str) -> Optional[Habitacion]:
+        return self.SesionBD.query(Habitacion).filter(Habitacion.numero == Numero).first()
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[Habitacion]:
-        return self.db.query(Habitacion).offset(skip).limit(limit).all()
+    def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Habitacion]:
+        return self.SesionBD.query(Habitacion).offset(Saltar).limit(Limite).all()
 
-    def create(self, habitacion: Habitacion) -> Habitacion:
-        self.db.add(habitacion)
-        self.db.commit()
-        self.db.refresh(habitacion)
-        return habitacion
+    def Crear(self, HabitacionNueva: Habitacion) -> Habitacion:
+        self.SesionBD.add(HabitacionNueva)
+        self.SesionBD.commit()
+        self.SesionBD.refresh(HabitacionNueva)
+        return HabitacionNueva
 
-    def update(self, habitacion: Habitacion) -> Habitacion:
-        self.db.commit()
-        self.db.refresh(habitacion)
-        return habitacion
+    def Actualizar(self, HabitacionActualizada: Habitacion) -> Habitacion:
+        self.SesionBD.commit()
+        self.SesionBD.refresh(HabitacionActualizada)
+        return HabitacionActualizada
 
-    def delete(self, habitacion: Habitacion):
-        self.db.delete(habitacion)
-        self.db.commit()
+    def Eliminar(self, HabitacionAEliminar: Habitacion):
+        self.SesionBD.delete(HabitacionAEliminar)
+        self.SesionBD.commit()
 
-    def buscar_disponibles(
+    def BuscarDisponibles(
         self, 
-        fecha_entrada: date, 
-        fecha_salida: date, 
-        capacidad: Optional[int] = None,
-        tipo: Optional[str] = None
+        FechaEntrada: date, 
+        FechaSalida: date, 
+        Capacidad: Optional[int] = None,
+        Tipo: Optional[str] = None
     ) -> List[Habitacion]:
-        # Habitaciones con reservas en conflicto
-        # Filtrar reservas que no estén canceladas y que tengan conflicto de fechas
         from sqlalchemy import cast, String
-        estado_cancelada_value = EstadoReserva.CANCELADA.value
-        habitaciones_ocupadas = self.db.query(Reserva.habitacion_id).filter(
+        ValorEstadoCancelada = EstadoReserva.CANCELADA.value
+        HabitacionesOcupadas = self.SesionBD.query(Reserva.habitacion_id).filter(
             and_(
-                cast(Reserva.estado, String) != estado_cancelada_value,
+                cast(Reserva.estado, String) != ValorEstadoCancelada,
                 or_(
-                    and_(Reserva.fecha_entrada <= fecha_entrada, Reserva.fecha_salida > fecha_entrada),
-                    and_(Reserva.fecha_entrada < fecha_salida, Reserva.fecha_salida >= fecha_salida),
-                    and_(Reserva.fecha_entrada >= fecha_entrada, Reserva.fecha_salida <= fecha_salida)
+                    and_(Reserva.fecha_entrada <= FechaEntrada, Reserva.fecha_salida > FechaEntrada),
+                    and_(Reserva.fecha_entrada < FechaSalida, Reserva.fecha_salida >= FechaSalida),
+                    and_(Reserva.fecha_entrada >= FechaEntrada, Reserva.fecha_salida <= FechaSalida)
                 )
             )
         ).distinct()
         
-        habitaciones_ocupadas_ids = [row[0] for row in habitaciones_ocupadas]
+        IdsHabitacionesOcupadas = [Fila[0] for Fila in HabitacionesOcupadas]
 
-        query = self.db.query(Habitacion).filter(
+        Consulta = self.SesionBD.query(Habitacion).filter(
             Habitacion.disponible == True
         )
         
-        if habitaciones_ocupadas_ids:
-            query = query.filter(~Habitacion.id.in_(habitaciones_ocupadas_ids))
+        if IdsHabitacionesOcupadas:
+            Consulta = Consulta.filter(~Habitacion.id.in_(IdsHabitacionesOcupadas))
 
-        if capacidad:
-            query = query.filter(Habitacion.capacidad >= capacidad)
+        if Capacidad:
+            Consulta = Consulta.filter(Habitacion.capacidad >= Capacidad)
         
-        if tipo:
-            query = query.filter(Habitacion.tipo == tipo)
+        if Tipo:
+            Consulta = Consulta.filter(Habitacion.tipo == Tipo)
 
-        return query.all()
+        return Consulta.all()

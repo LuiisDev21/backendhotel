@@ -4,31 +4,31 @@ from app.models.reserva import Reserva
 
 
 class ReservaRepository:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, SesionBD: Session):
+        self.SesionBD = SesionBD
 
-    def get_by_id(self, reserva_id: int) -> Optional[Reserva]:
-        return self.db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    def ObtenerPorId(self, IdReserva: int) -> Optional[Reserva]:
+        return self.SesionBD.query(Reserva).filter(Reserva.id == IdReserva).first()
 
-    def get_by_usuario(self, usuario_id: int, skip: int = 0, limit: int = 100) -> List[Reserva]:
-        return self.db.query(Reserva).filter(
-            Reserva.usuario_id == usuario_id
-        ).offset(skip).limit(limit).all()
+    def ObtenerPorUsuario(self, IdUsuario: int, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
+        return self.SesionBD.query(Reserva).filter(
+            Reserva.usuario_id == IdUsuario
+        ).offset(Saltar).limit(Limite).all()
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[Reserva]:
-        return self.db.query(Reserva).offset(skip).limit(limit).all()
+    def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
+        return self.SesionBD.query(Reserva).offset(Saltar).limit(Limite).all()
 
-    def create(self, reserva: Reserva) -> Reserva:
-        self.db.add(reserva)
-        self.db.commit()
-        self.db.refresh(reserva)
-        return reserva
+    def Crear(self, ReservaNueva: Reserva) -> Reserva:
+        self.SesionBD.add(ReservaNueva)
+        self.SesionBD.commit()
+        self.SesionBD.refresh(ReservaNueva)
+        return ReservaNueva
 
-    def update(self, reserva: Reserva) -> Reserva:
-        self.db.commit()
-        self.db.refresh(reserva)
-        return reserva
+    def Actualizar(self, ReservaActualizada: Reserva) -> Reserva:
+        self.SesionBD.commit()
+        self.SesionBD.refresh(ReservaActualizada)
+        return ReservaActualizada
 
-    def delete(self, reserva: Reserva):
-        self.db.delete(reserva)
-        self.db.commit()
+    def Eliminar(self, ReservaAEliminar: Reserva):
+        self.SesionBD.delete(ReservaAEliminar)
+        self.SesionBD.commit()

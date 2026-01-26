@@ -18,12 +18,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-def get_db():
-    db = SessionLocal()
+def ObtenerSesionBD():
+    SesionBD = SessionLocal()
     try:
-        yield db
+        yield SesionBD
     except Exception:
-        db.rollback()
+        SesionBD.rollback()
         raise
     finally:
-        db.close()
+        SesionBD.close()
