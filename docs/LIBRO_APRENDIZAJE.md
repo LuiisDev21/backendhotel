@@ -1976,5 +1976,3 @@ Este libro cubre todos los aspectos del proyecto:
 - [JWT.io](https://jwt.io/) - Para entender tokens JWT
 
 ---
-
-**¡Feliz aprendizaje y desarrollo!** 🚀

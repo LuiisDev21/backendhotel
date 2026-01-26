@@ -59,3 +59,6 @@ class UsuarioService:
                 detail="Usuario no encontrado"
             )
         return UsuarioEncontrado
+
+    def ListarUsuarios(self, Saltar: int = 0, Limite: int = 100):
+        return self.Repositorio.ObtenerTodos(Saltar=Saltar, Limite=Limite)
