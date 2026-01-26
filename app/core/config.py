@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "Sistema de Reservas de Hotel"
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_KEY: Optional[str] = None
+    SUPABASE_BUCKET: str = "habitaciones"
 
     class Config:
         env_file = ".env"

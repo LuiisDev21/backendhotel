@@ -11,6 +11,7 @@ class HabitacionBase(BaseModel):
     capacidad: int
     precio_por_noche: Decimal
     disponible: bool = True
+    imagen_url: Optional[str] = None
 
 
 class HabitacionCreate(HabitacionBase):
@@ -23,6 +24,7 @@ class HabitacionUpdate(BaseModel):
     capacidad: Optional[int] = None
     precio_por_noche: Optional[Decimal] = None
     disponible: Optional[bool] = None
+    imagen_url: Optional[str] = None
 
 
 class HabitacionResponse(HabitacionBase):

@@ -11,8 +11,11 @@ Sistema backend desarrollado con FastAPI para la gestión de reservas de hotel, 
 - [Configuración](#configuración)
 - [Base de Datos](#base-de-datos)
 - [Ejecución](#ejecución)
+  - [Opción 1: Con Docker (Recomendado)](#opción-1-con-docker-recomendado-)
+  - [Opción 2: Instalación Local (Sin Docker)](#opción-2-instalación-local-sin-docker)
 - [Documentación de Endpoints](#documentación-de-endpoints)
 - [Estructura del Proyecto](#estructura-del-proyecto)
+- [Docker](#docker)
 
 ## 🚀 Características
 
@@ -23,12 +26,15 @@ Sistema backend desarrollado con FastAPI para la gestión de reservas de hotel, 
    - Inicio de sesión con JWT
    - Gestión de perfiles
    - Control de acceso basado en roles (cliente/administrador)
+   - Listado de usuarios (solo administradores)
 
 2. **Módulo de Búsqueda y Consulta de Habitaciones**
    - Listado de habitaciones
    - Búsqueda de habitaciones disponibles por fechas
    - Filtros por capacidad y tipo
    - Gestión de habitaciones (solo administradores)
+   - **Subida de imágenes a Supabase Storage**
+   - Visualización de imágenes en habitaciones
 
 3. **Módulo de Gestión de Reservas**
    - Creación de reservas por clientes
@@ -43,6 +49,13 @@ Sistema backend desarrollado con FastAPI para la gestión de reservas de hotel, 
    - Gestión de estados de pago
    - Reembolsos
    - Facturación automática
+
+5. **Frontend Web Completo**
+   - Interfaz de usuario moderna y minimalista
+   - Panel de administrador con todas las funcionalidades
+   - Panel de cliente para reservas
+   - Gestión completa de imágenes de habitaciones
+   - Diseño responsive y plano (flat design)
 
 ## 🏗️ Arquitectura
 
@@ -68,9 +81,14 @@ app/
 
 ## 📦 Requisitos
 
+### Opción 1: Instalación Local
 - Python 3.9 o superior
 - PostgreSQL 12 o superior
 - pip (gestor de paquetes de Python)
+
+### Opción 2: Docker (Recomendado)
+- Docker 20.10 o superior
+- Docker Compose 2.0 o superior
 
 ## 🔧 Instalación
 
@@ -125,11 +143,17 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 API_V1_PREFIX=/api/v1
 PROJECT_NAME=Sistema de Reservas de Hotel
+
+# Configuración de Supabase (opcional, para subir imágenes)
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu-anon-key-aqui
+SUPABASE_BUCKET=habitaciones
 ```
 
 **Importante:**
 - Cambia `SECRET_KEY` por una clave segura (puedes generar una con: `openssl rand -hex 32`)
 - Ajusta `DATABASE_URL` con tus credenciales de PostgreSQL
+- Las variables de Supabase son opcionales. Si no las configuras, el sistema funcionará pero no podrás subir imágenes
 
 ## 🗄️ Base de Datos
 
@@ -169,19 +193,125 @@ Deberías ver las siguientes tablas:
 
 ## ▶️ Ejecución
 
-### Modo desarrollo
+### Opción 1: Con Docker (Recomendado) 🐳
+
+Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incluye PostgreSQL y configura todo automáticamente.
+
+#### Desarrollo con Docker Compose
+
+1. **Crear archivo `.env`** (si no existe):
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Configurar variables de entorno**:
+
+   **Opción A: Base de datos externa (ej: Supabase)**
+   ```env
+   DATABASE_URL=postgresql://usuario:contraseña@host:puerto/nombre_bd
+   SECRET_KEY=tu-clave-secreta-aqui
+   SUPABASE_URL=https://tu-proyecto.supabase.co
+   SUPABASE_KEY=tu-anon-key
+   SUPABASE_BUCKET=habitaciones
+   ```
+
+   **Opción B: Base de datos local de Docker (por defecto)**
+   ```env
+   SECRET_KEY=tu-clave-secreta-aqui
+   SUPABASE_URL=https://tu-proyecto.supabase.co
+   SUPABASE_KEY=tu-anon-key
+   SUPABASE_BUCKET=habitaciones
+   ```
+   > **Nota:** Si defines `DATABASE_URL` en tu `.env`, Docker usará esa base de datos externa. Si no la defines, usará la base de datos local de Docker automáticamente.
+
+3. **Construir y ejecutar los contenedores**:
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **La aplicación estará disponible en:**
+   - API: http://localhost:8000
+   - Documentación Swagger: http://localhost:8000/docs
+   - Documentación ReDoc: http://localhost:8000/redoc
+
+5. **Crear un usuario administrador**:
+   ```bash
+   docker-compose exec api python scripts/create_admin.py tu_contraseña
+   ```
+
+#### Producción con Docker Compose
+
+1. **Crear archivo `.env` con variables de producción**:
+   ```env
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=contraseña_segura
+   POSTGRES_DB=hotel_db
+   SECRET_KEY=clave-secreta-muy-segura-generada-con-openssl-rand-hex-32
+   ALGORITHM=HS256
+   ACCESS_TOKEN_EXPIRE_MINUTES=30
+   API_V1_PREFIX=/api/v1
+   PROJECT_NAME=Sistema de Reservas de Hotel
+   SUPABASE_URL=https://tu-proyecto.supabase.co
+   SUPABASE_KEY=tu-anon-key
+   SUPABASE_BUCKET=habitaciones
+   API_PORT=8000
+   ```
+
+2. **Ejecutar en modo producción**:
+   ```bash
+   docker-compose -f docker-compose.prod.yml up -d --build
+   ```
+
+#### Comandos útiles de Docker
+
+```bash
+# Ver logs de los contenedores
+docker-compose logs -f
+
+# Ver logs solo de la API
+docker-compose logs -f api
+
+# Detener los contenedores
+docker-compose down
+
+# Detener y eliminar volúmenes (¡cuidado! esto borra la base de datos)
+docker-compose down -v
+
+# Reconstruir solo la API
+docker-compose build api
+
+# Ejecutar comandos dentro del contenedor de la API
+docker-compose exec api bash
+
+# Reiniciar un servicio específico
+docker-compose restart api
+```
+
+#### Estructura de Docker
+
+- **`Dockerfile`**: Define la imagen de la aplicación FastAPI
+- **`docker-compose.yml`**: Configuración para desarrollo (con hot-reload, usa `DATABASE_URL` del `.env` si existe)
+- **`docker-compose.prod.yml`**: Configuración para producción (sin hot-reload, usa `DATABASE_URL` del `.env` si existe)
+- **`docker-compose.external-db.yml`**: Configuración alternativa solo para base de datos externa (sin servicio db local)
+- **`.dockerignore`**: Archivos excluidos de la imagen Docker
+
+**Nota importante:** Si tienes `DATABASE_URL` en tu `.env`, Docker la usará automáticamente. Si no la tienes, usará la base de datos local de Docker.
+
+### Opción 2: Instalación Local (Sin Docker)
+
+#### Modo desarrollo
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Modo producción
+#### Modo producción
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Con configuración personalizada
+#### Con configuración personalizada
 
 ```bash
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
@@ -265,28 +395,62 @@ Authorization: Bearer {access_token}
 }
 ```
 
+#### GET `/api/v1/auth/usuarios`
+Lista todos los usuarios registrados. **Requiere autenticación de administrador.**
+
+**Query Parameters:**
+- `Saltar` (int, opcional): Número de registros a omitir (default: 0)
+- `Limite` (int, opcional): Número máximo de registros (default: 100, max: 100)
+
+**Response:** 200 OK
+```json
+[
+  {
+    "id": 1,
+    "email": "usuario@example.com",
+    "nombre": "Juan",
+    "apellido": "Pérez",
+    "telefono": "+505 1234-5678",
+    "es_administrador": false,
+    "activo": true,
+    "fecha_creacion": "2024-01-25T12:00:00"
+  }
+]
+```
+
 ---
 
 ### Habitaciones (`/api/v1/habitaciones`)
 
 #### POST `/api/v1/habitaciones`
-Crea una nueva habitación. **Requiere autenticación de administrador.**
+Crea una nueva habitación. Si se proporciona una imagen, se sube automáticamente a Supabase Storage. **Requiere autenticación de administrador.**
 
 **Headers:**
 ```
 Authorization: Bearer {access_token}
+Content-Type: multipart/form-data
 ```
 
-**Request Body:**
-```json
-{
-  "numero": "301",
-  "tipo": "Suite",
-  "descripcion": "Suite de lujo con jacuzzi",
-  "capacidad": 2,
-  "precio_por_noche": 200.00,
-  "disponible": true
-}
+**Request Body (FormData):**
+- `numero` (string, requerido): Número único de la habitación
+- `tipo` (string, requerido): Tipo de habitación
+- `descripcion` (string, opcional): Descripción de la habitación
+- `capacidad` (integer, requerido): Capacidad de huéspedes
+- `precio_por_noche` (decimal, requerido): Precio por noche
+- `disponible` (boolean, opcional): Disponibilidad (default: true)
+- `archivo` (file, opcional): Archivo de imagen (JPEG, PNG, WebP, máximo 5MB)
+
+**Ejemplo con curl:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/habitaciones" \
+  -H "Authorization: Bearer {token}" \
+  -F "numero=301" \
+  -F "tipo=Suite" \
+  -F "descripcion=Suite de lujo con jacuzzi" \
+  -F "capacidad=2" \
+  -F "precio_por_noche=200.00" \
+  -F "disponible=true" \
+  -F "archivo=@/ruta/a/imagen.jpg"
 ```
 
 **Response:** 200 OK
@@ -299,7 +463,33 @@ Authorization: Bearer {access_token}
   "capacidad": 2,
   "precio_por_noche": 200.00,
   "disponible": true,
+  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/7_abc123.jpg",
   "fecha_creacion": "2024-01-25T12:00:00"
+}
+```
+
+**Nota:** La imagen se sube automáticamente si se proporciona. Si la subida falla, la habitación se crea igualmente pero sin imagen.
+
+#### POST `/api/v1/habitaciones/{habitacion_id}/imagen`
+Sube una imagen para una habitación. **Requiere autenticación de administrador.**
+
+**Nota:** Este endpoint está disponible para compatibilidad, pero se recomienda usar el endpoint de crear o actualizar habitación con el campo `archivo` en FormData, ya que sube la imagen automáticamente en una sola operación.
+
+**Headers:**
+```
+Authorization: Bearer {access_token}
+Content-Type: multipart/form-data
+```
+
+**Request Body (FormData):**
+- `archivo`: Archivo de imagen (JPEG, PNG, WebP, máximo 5MB)
+
+**Response:** 200 OK
+```json
+{
+  "message": "Imagen subida correctamente",
+  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
+  "habitacion": { ... }
 }
 ```
 
@@ -377,15 +567,35 @@ Obtiene los detalles de una habitación específica.
 ```
 
 #### PUT `/api/v1/habitaciones/{habitacion_id}`
-Actualiza una habitación. **Requiere autenticación de administrador.**
+Actualiza una habitación. Si se proporciona una imagen, se sube automáticamente a Supabase Storage y reemplaza la imagen anterior. **Requiere autenticación de administrador.**
 
-**Request Body:**
-```json
-{
-  "precio_por_noche": 55.00,
-  "disponible": false
-}
+**Headers:**
 ```
+Authorization: Bearer {access_token}
+Content-Type: multipart/form-data
+```
+
+**Request Body (FormData):**
+- `tipo` (string, requerido): Tipo de habitación
+- `descripcion` (string, opcional): Descripción de la habitación
+- `capacidad` (integer, requerido): Capacidad de huéspedes
+- `precio_por_noche` (decimal, requerido): Precio por noche
+- `disponible` (string, requerido): Disponibilidad ("true" o "false")
+- `archivo` (file, opcional): Archivo de imagen (JPEG, PNG, WebP, máximo 5MB)
+
+**Ejemplo con curl:**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
+  -H "Authorization: Bearer {token}" \
+  -F "tipo=Individual Premium" \
+  -F "descripcion=Habitación actualizada" \
+  -F "capacidad=1" \
+  -F "precio_por_noche=55.00" \
+  -F "disponible=true" \
+  -F "archivo=@/ruta/a/nueva-imagen.jpg"
+```
+
+**Nota:** La imagen se sube automáticamente si se proporciona. Si la subida falla, los demás campos se actualizan igualmente.
 
 #### DELETE `/api/v1/habitaciones/{habitacion_id}`
 Elimina una habitación. **Requiere autenticación de administrador.**
@@ -580,7 +790,13 @@ backendhotel/
 │   │   ├── config.py           # Configuración y variables de entorno
 │   │   ├── database.py         # Conexión a base de datos
 │   │   ├── security.py         # Funciones de seguridad (JWT, bcrypt)
-│   │   └── dependencies.py     # Dependencias de autenticación
+│   │   ├── dependencies.py     # Dependencias de autenticación
+│   │   ├── storage.py          # Funciones para Supabase Storage
+│   │   └── enum_type.py        # TypeDecorator para enums
+├── Dockerfile                  # Configuración de imagen Docker
+├── docker-compose.yml          # Configuración Docker Compose (desarrollo)
+├── docker-compose.prod.yml     # Configuración Docker Compose (producción)
+├── .dockerignore              # Archivos excluidos de imagen Docker
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── usuario.py          # Modelo Usuario
@@ -611,9 +827,26 @@ backendhotel/
 │       ├── habitaciones.py     # Endpoints de habitaciones
 │       ├── reservas.py         # Endpoints de reservas
 │       └── pagos.py            # Endpoints de pagos
+├── frontend/                    # Aplicación web frontend
+│   ├── index.html              # Página de login/registro
+│   ├── admin.html              # Panel de administrador
+│   ├── cliente.html            # Panel de cliente
+│   ├── styles.css              # Estilos CSS
+│   ├── api.js                  # Funciones para llamadas API
+│   ├── app.js                  # Lógica de autenticación
+│   ├── admin.js                # Lógica del panel admin
+│   └── cliente.js              # Lógica del panel cliente
+├── scripts/
+│   ├── create_admin.py         # Script para generar hash de contraseña
+│   └── init_database.py       # Script para inicializar BD
+├── docs/                        # Documentación adicional
+│   ├── DOCUMENTACION_ENDPOINTS.md
+│   ├── DOCKER.md                # Guía completa de Docker
+│   ├── INICIO_RAPIDO.md
+│   └── LIBRO_APRENDIZAJE.md
 ├── database.sql                 # Script SQL para crear la base de datos
 ├── requirements.txt            # Dependencias del proyecto
-├── .env.example                # Ejemplo de variables de entorno
+├── .env                        # Variables de entorno (crear)
 ├── .gitignore
 └── README.md                   # Este archivo
 ```
@@ -686,6 +919,116 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 - Las reservas canceladas no bloquean las fechas de las habitaciones
 - Los pagos se asocian automáticamente con las reservas
 - El estado de las reservas se actualiza automáticamente cuando se procesa un pago
+- Las imágenes de habitaciones se almacenan en Supabase Storage (opcional)
+- El frontend está incluido en la carpeta `frontend/` y puede abrirse directamente en el navegador
+
+## 🖼️ Configuración de Supabase para Imágenes
+
+Para habilitar la funcionalidad de subida de imágenes de habitaciones:
+
+### 1. Crear el Bucket en Supabase
+
+1. Ve a tu proyecto en Supabase
+2. Navega a **Storage** en el menú lateral
+3. Haz clic en **New bucket**
+4. Nombre del bucket: `habitaciones`
+5. Marca como **Public bucket**
+6. Haz clic en **Create bucket**
+
+### 2. Configurar Políticas de Storage (IMPORTANTE)
+
+El bucket necesita políticas RLS (Row Level Security) para permitir la subida de archivos.
+
+1. En el bucket `habitaciones`, ve a **Policies**
+2. Haz clic en **New Policy**
+3. Selecciona **For full customization**
+4. Crea las siguientes políticas:
+
+**Política 1: Lectura pública (SELECT)**
+- Policy name: `Public read access`
+- Allowed operation: SELECT
+- Policy definition: `true`
+
+**Política 2: Subida de archivos (INSERT)**
+- Policy name: `Allow uploads`
+- Allowed operation: INSERT
+- Policy definition: `true`
+
+**Política 3: Actualización (UPDATE)**
+- Policy name: `Allow updates`
+- Allowed operation: UPDATE
+- Policy definition: `true`
+
+**Política 4: Eliminación (DELETE) - Opcional**
+- Policy name: `Allow deletes`
+- Allowed operation: DELETE
+- Policy definition: `true`
+
+### 3. Obtener las Credenciales
+
+1. Ve a **Settings** > **API** en tu proyecto de Supabase
+2. Copia:
+   - **Project URL** (SUPABASE_URL)
+   - **anon public** key (SUPABASE_KEY)
+
+### 4. Agregar Variables de Entorno
+
+Agrega las siguientes variables a tu archivo `.env`:
+
+```env
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu-anon-key-aqui
+SUPABASE_BUCKET=habitaciones
+```
+
+### 5. Ejecutar Migración de Base de Datos
+
+Si ya tienes la tabla `habitaciones` creada, ejecuta la migración:
+
+```bash
+psql -U usuario -d hotel_db -f migrations/add_imagen_url_to_habitaciones.sql
+```
+
+O si estás usando `database.sql` desde cero, el campo `imagen_url` ya está incluido.
+
+### Formatos y Límites
+
+- **Formatos soportados**: JPEG, JPG, PNG, WebP
+- **Tamaño máximo**: 5MB por imagen
+- **Ruta de almacenamiento**: `habitaciones/{habitacion_id}_{uuid}.{extension}`
+
+## 🌐 Frontend Web
+
+El proyecto incluye una aplicación web frontend completa en la carpeta `frontend/`:
+
+### Características del Frontend
+
+- **Interfaz minimalista**: Diseño plano con colores blanco y gris
+- **Panel de Administrador**: Gestión completa de habitaciones, reservas, pagos y usuarios
+- **Panel de Cliente**: Búsqueda de habitaciones, creación de reservas y gestión de pagos
+- **Subida de imágenes**: Interfaz para subir imágenes de habitaciones
+- **Responsive**: Adaptable a diferentes tamaños de pantalla
+
+### Uso del Frontend
+
+1. Abre `frontend/index.html` en tu navegador
+2. Registra un nuevo usuario o inicia sesión
+3. Según tu rol, serás redirigido a:
+   - `admin.html` - Si eres administrador
+   - `cliente.html` - Si eres cliente
+
+### Configuración
+
+Asegúrate de que el backend esté ejecutándose en:
+```
+http://127.0.0.1:8000
+```
+
+Si el backend está en otra URL, edita `API_BASE_URL` en `frontend/api.js`:
+
+```javascript
+const API_BASE_URL = 'http://tu-url:puerto/api/v1';
+```
 
 ## 🤝 Contribuciones
 
@@ -705,5 +1048,8 @@ Este proyecto es de uso educativo.
 
 Este proyecto incluye documentación adicional para facilitar su uso:
 
-- **[INICIO_RAPIDO.md](INICIO_RAPIDO.md)**: Guía paso a paso para poner en marcha el sistema rápidamente
-- **[DOCUMENTACION_ENDPOINTS.md](DOCUMENTACION_ENDPOINTS.md)**: Documentación técnica detallada de todos los endpoints de la API
+- **[docs/INICIO_RAPIDO.md](docs/INICIO_RAPIDO.md)**: Guía paso a paso para poner en marcha el sistema rápidamente
+- **[docs/DOCKER.md](docs/DOCKER.md)**: Guía completa de Docker para desarrollo y producción
+- **[docs/DOCUMENTACION_ENDPOINTS.md](docs/DOCUMENTACION_ENDPOINTS.md)**: Documentación técnica detallada de todos los endpoints de la API
+- **[docs/LIBRO_APRENDIZAJE.md](docs/LIBRO_APRENDIZAJE.md)**: Libro de aprendizaje completo sobre el proyecto
+- **[frontend/README.md](frontend/README.md)**: Documentación del frontend web

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS habitaciones (
     capacidad INTEGER NOT NULL,
     precio_por_noche NUMERIC(10, 2) NOT NULL,
     disponible BOOLEAN DEFAULT TRUE,
+    imagen_url VARCHAR(500),
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

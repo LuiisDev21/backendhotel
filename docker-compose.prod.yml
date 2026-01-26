@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: backendhotel_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backendhotel_network
+    restart: unless-stopped
+
+  # API FastAPI (Producción)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backendhotel_api
+    environment:
+      # Usar DATABASE_URL del .env si existe, sino construir desde variables individuales
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-hotel_db}}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+      PROJECT_NAME: ${PROJECT_NAME:-Sistema de Reservas de Hotel}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_KEY: ${SUPABASE_KEY:-}
+      SUPABASE_BUCKET: ${SUPABASE_BUCKET:-habitaciones}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      # Si usas DATABASE_URL externa, el servicio db no se usará pero no causa problemas
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Esperando a que la base de datos esté lista...' &&
+        sleep 5 &&
+        python scripts/init_database.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+    networks:
+      - backendhotel_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  backendhotel_network:
+    driver: bridge
