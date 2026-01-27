@@ -195,7 +195,7 @@ Deberías ver las siguientes tablas:
 
 ### Opción 1: Con Docker (Recomendado) 🐳
 
-Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incluye PostgreSQL y configura todo automáticamente.
+Docker es la forma más fácil y rápida de ejecutar la aplicación. La configuración usa tu base de datos externa (Supabase) desde el `.env`.
 
 #### Desarrollo con Docker Compose
 
@@ -204,9 +204,7 @@ Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incl
    cp .env.example .env
    ```
 
-2. **Configurar variables de entorno**:
-
-   **Opción A: Base de datos externa (ej: Supabase)**
+2. **Configurar variables de entorno** (requerido):
    ```env
    DATABASE_URL=postgresql://usuario:contraseña@host:puerto/nombre_bd
    SECRET_KEY=tu-clave-secreta-aqui
@@ -214,22 +212,14 @@ Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incl
    SUPABASE_KEY=tu-anon-key
    SUPABASE_BUCKET=habitaciones
    ```
+   > **Importante:** `DATABASE_URL` es **requerido**. La aplicación usará tu base de datos externa.
 
-   **Opción B: Base de datos local de Docker (por defecto)**
-   ```env
-   SECRET_KEY=tu-clave-secreta-aqui
-   SUPABASE_URL=https://tu-proyecto.supabase.co
-   SUPABASE_KEY=tu-anon-key
-   SUPABASE_BUCKET=habitaciones
-   ```
-   > **Nota:** Si defines `DATABASE_URL` en tu `.env`, Docker usará esa base de datos externa. Si no la defines, usará la base de datos local de Docker automáticamente.
-
-3. **Construir y ejecutar los contenedores**:
+3. **Construir y ejecutar el contenedor**:
    ```bash
    docker-compose up --build
    ```
 
-4. **La aplicación estará disponible en:**
+3. **La aplicación estará disponible en:**
    - API: http://localhost:8000
    - Documentación Swagger: http://localhost:8000/docs
    - Documentación ReDoc: http://localhost:8000/redoc
@@ -243,9 +233,7 @@ Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incl
 
 1. **Crear archivo `.env` con variables de producción**:
    ```env
-   POSTGRES_USER=postgres
-   POSTGRES_PASSWORD=contraseña_segura
-   POSTGRES_DB=hotel_db
+   DATABASE_URL=postgresql://usuario:contraseña@host:puerto/nombre_bd
    SECRET_KEY=clave-secreta-muy-segura-generada-con-openssl-rand-hex-32
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -256,6 +244,7 @@ Docker es la forma más fácil y rápida de ejecutar la aplicación, ya que incl
    SUPABASE_BUCKET=habitaciones
    API_PORT=8000
    ```
+   > **Importante:** `DATABASE_URL` es **requerido**. La aplicación usará tu base de datos externa.
 
 2. **Ejecutar en modo producción**:
    ```bash
@@ -290,12 +279,11 @@ docker-compose restart api
 #### Estructura de Docker
 
 - **`Dockerfile`**: Define la imagen de la aplicación FastAPI
-- **`docker-compose.yml`**: Configuración para desarrollo (con hot-reload, usa `DATABASE_URL` del `.env` si existe)
-- **`docker-compose.prod.yml`**: Configuración para producción (sin hot-reload, usa `DATABASE_URL` del `.env` si existe)
-- **`docker-compose.external-db.yml`**: Configuración alternativa solo para base de datos externa (sin servicio db local)
+- **`docker-compose.yml`**: Configuración para desarrollo (con hot-reload, usa `DATABASE_URL` del `.env`)
+- **`docker-compose.prod.yml`**: Configuración para producción (sin hot-reload, usa `DATABASE_URL` del `.env`)
 - **`.dockerignore`**: Archivos excluidos de la imagen Docker
 
-**Nota importante:** Si tienes `DATABASE_URL` en tu `.env`, Docker la usará automáticamente. Si no la tienes, usará la base de datos local de Docker.
+**Nota importante:** La configuración usa únicamente tu base de datos externa definida en `DATABASE_URL` del `.env`. No se crea ninguna base de datos local.
 
 ### Opción 2: Instalación Local (Sin Docker)
 
@@ -794,8 +782,8 @@ backendhotel/
 │   │   ├── storage.py          # Funciones para Supabase Storage
 │   │   └── enum_type.py        # TypeDecorator para enums
 ├── Dockerfile                  # Configuración de imagen Docker
-├── docker-compose.yml          # Configuración Docker Compose (desarrollo)
-├── docker-compose.prod.yml     # Configuración Docker Compose (producción)
+├── docker-compose.yml          # Configuración Docker Compose (desarrollo, solo API)
+├── docker-compose.prod.yml     # Configuración Docker Compose (producción, solo API)
 ├── .dockerignore              # Archivos excluidos de imagen Docker
 │   ├── models/
 │   │   ├── __init__.py
