@@ -4,11 +4,35 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Configurar bcrypt con identificación explícita para compatibilidad
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__ident="2b"
+)
 
 
 def VerificarContrasena(ContrasenaPlana: str, ContrasenaEncriptada: str) -> bool:
-    return pwd_context.verify(ContrasenaPlana, ContrasenaEncriptada)
+    """
+    Verifica una contraseña plana contra un hash bcrypt.
+    
+    Args:
+        ContrasenaPlana: Contraseña en texto plano
+        ContrasenaEncriptada: Hash bcrypt almacenado
+        
+    Returns:
+        True si la contraseña coincide, False en caso contrario
+    """
+    try:
+        # Validar que ambos son strings
+        if not isinstance(ContrasenaPlana, str) or not isinstance(ContrasenaEncriptada, str):
+            return False
+        
+        # Verificar la contraseña
+        return pwd_context.verify(ContrasenaPlana, ContrasenaEncriptada)
+    except (ValueError, TypeError, AttributeError) as e:
+        # Si hay error (hash inválido, incompatibilidad, etc.), retornar False
+        return False
 
 
 def ObtenerHashContrasena(Contrasena: str) -> str:
