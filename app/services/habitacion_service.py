@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from datetime import date
 from typing import Optional, List
 from app.models.habitacion import Habitacion
+from app.models.reserva import Reserva
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
 
@@ -69,4 +70,16 @@ class HabitacionService:
 
     def EliminarHabitacion(self, IdHabitacion: int):
         HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
+        
+        # Verificar si hay reservas asociadas
+        ReservasAsociadas = self.SesionBD.query(Reserva).filter(
+            Reserva.habitacion_id == IdHabitacion
+        ).count()
+        
+        if ReservasAsociadas > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar la habitación porque tiene {ReservasAsociadas} reserva(s) asociada(s). Por favor, cancela o elimina las reservas primero."
+            )
+        
         self.Repositorio.Eliminar(HabitacionEncontrada)
