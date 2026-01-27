@@ -561,6 +561,46 @@ class HabitacionResponse(HabitacionBase):
         from_attributes = True
 ```
 
+### 5.3 Schema de Reserva con Campos Computados
+
+**Archivo**: `app/schemas/reserva.py`
+
+El schema de respuesta de reservas incluye campos computados que extraen información de las relaciones:
+
+```python
+from pydantic import BaseModel, model_validator
+from typing import Optional, Any
+
+class ReservaResponse(ReservaBase):
+    id: int
+    usuario_id: int
+    precio_total: Decimal
+    estado: EstadoReserva
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime
+    numero_habitacion: Optional[str] = None  # Campo computado
+    nombre_usuario: Optional[str] = None     # Campo computado
+
+    class Config:
+        from_attributes = True
+    
+    @model_validator(mode='before')
+    @classmethod
+    def extraer_datos_relaciones(cls, data: Any) -> Any:
+        # Extraer datos de las relaciones ORM antes de validar
+        if hasattr(data, '__dict__'):
+            if hasattr(data, 'habitacion') and data.habitacion:
+                data.__dict__['numero_habitacion'] = data.habitacion.numero
+            if hasattr(data, 'usuario') and data.usuario:
+                data.__dict__['nombre_usuario'] = f"{data.usuario.nombre} {data.usuario.apellido}"
+        return data
+```
+
+**Ventajas de campos computados:**
+- La API devuelve información legible (nombres en lugar de IDs)
+- No se necesitan consultas adicionales en el frontend
+- Los datos originales (IDs) siguen disponibles
+
 ### 5.3 Patrón de Herencia de Schemas
 
 #### HabitacionBase
@@ -795,20 +835,30 @@ habitacion = reserva.habitacion  # Join automático
 usuario = reserva.usuario       # Join automático
 ```
 
-#### Join Explícito
+#### Join Explícito (Eager Loading)
 
 ```python
 from sqlalchemy.orm import joinedload
 
 def ObtenerReservaConRelaciones(self, IdReserva: int):
-    return self.SesionBD.query(Reserva)\
-        .options(joinedload(Reserva.habitacion))\
-        .options(joinedload(Reserva.usuario))\
-        .filter(Reserva.id == IdReserva)\
-        .first()
+    return self.SesionBD.query(Reserva).options(
+        joinedload(Reserva.habitacion),
+        joinedload(Reserva.usuario)
+    ).filter(Reserva.id == IdReserva).first()
 ```
 
 **Ventaja**: Carga relaciones en una sola query (evita N+1 queries).
+
+**Ejemplo real del proyecto** (`reserva_repository.py`):
+```python
+def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
+    return self.SesionBD.query(Reserva).options(
+        joinedload(Reserva.habitacion),
+        joinedload(Reserva.usuario)
+    ).offset(Saltar).limit(Limite).all()
+```
+
+Esto permite que el schema `ReservaResponse` acceda a `reserva.habitacion.numero` y `reserva.usuario.nombre` sin queries adicionales.
 
 ### 6.6 Consulta Compleja: Habitaciones Disponibles
 
@@ -1061,6 +1111,52 @@ def CalcularPrecioTotal(
 ```
 
 **Separación de Responsabilidades**: Métodos pequeños y enfocados.
+
+### 7.8 Eliminación con Validación de Dependencias
+
+Un ejemplo de lógica de negocio compleja es la eliminación de habitaciones:
+
+```python
+def EliminarHabitacion(self, IdHabitacion: int):
+    HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
+    
+    # Verificar si hay reservas activas (pendientes o confirmadas)
+    ReservasActivas = self.SesionBD.query(Reserva).filter(
+        Reserva.habitacion_id == IdHabitacion,
+        Reserva.estado.in_([EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA])
+    ).count()
+    
+    if ReservasActivas > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede eliminar porque tiene {ReservasActivas} reserva(s) activa(s)"
+        )
+    
+    # Obtener IDs de reservas completadas o canceladas
+    ReservasAEliminar = self.SesionBD.query(Reserva.id).filter(
+        Reserva.habitacion_id == IdHabitacion,
+        Reserva.estado.in_([EstadoReserva.COMPLETADA, EstadoReserva.CANCELADA])
+    ).all()
+    IdsReservas = [r.id for r in ReservasAEliminar]
+    
+    if IdsReservas:
+        # Eliminar pagos asociados primero (por integridad referencial)
+        self.SesionBD.query(Pago).filter(
+            Pago.reserva_id.in_(IdsReservas)
+        ).delete(synchronize_session=False)
+        
+        # Eliminar reservas completadas/canceladas
+        self.SesionBD.query(Reserva).filter(
+            Reserva.id.in_(IdsReservas)
+        ).delete(synchronize_session=False)
+    
+    self.Repositorio.Eliminar(HabitacionEncontrada)
+```
+
+**Lógica de Negocio**:
+1. No permitir eliminar si hay reservas activas
+2. Si solo hay reservas finalizadas, eliminarlas junto con sus pagos
+3. Respetar el orden de eliminación por integridad referencial (pagos → reservas → habitación)
 
 ---
 

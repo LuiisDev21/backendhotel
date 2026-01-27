@@ -588,10 +588,19 @@ curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
 #### DELETE `/api/v1/habitaciones/{habitacion_id}`
 Elimina una habitación. **Requiere autenticación de administrador.**
 
+**Nota importante:** Solo se puede eliminar una habitación si todas sus reservas están completadas o canceladas. Las reservas completadas/canceladas y sus pagos asociados se eliminan automáticamente junto con la habitación.
+
 **Response:** 200 OK
 ```json
 {
   "message": "Habitación eliminada correctamente"
+}
+```
+
+**Error si hay reservas activas:** 400 Bad Request
+```json
+{
+  "detail": "No se puede eliminar la habitación porque tiene X reserva(s) activa(s) (pendiente(s) o confirmada(s)). Por favor, completa o cancela las reservas primero."
 }
 ```
 
@@ -624,6 +633,8 @@ Authorization: Bearer {access_token}
   "id": 1,
   "usuario_id": 1,
   "habitacion_id": 1,
+  "numero_habitacion": "101",
+  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
@@ -647,7 +658,10 @@ Lista las reservas del usuario autenticado.
 [
   {
     "id": 1,
+    "usuario_id": 1,
     "habitacion_id": 1,
+    "numero_habitacion": "101",
+    "nombre_usuario": "Juan Pérez",
     "fecha_entrada": "2024-02-01",
     "fecha_salida": "2024-02-05",
     "numero_huespedes": 2,
@@ -828,10 +842,8 @@ backendhotel/
 │   ├── create_admin.py         # Script para generar hash de contraseña
 │   └── init_database.py       # Script para inicializar BD
 ├── docs/                        # Documentación adicional
-│   ├── DOCUMENTACION_ENDPOINTS.md
-│   ├── DOCKER.md                # Guía completa de Docker
-│   ├── INICIO_RAPIDO.md
-│   └── LIBRO_APRENDIZAJE.md
+│   ├── DOCUMENTACION_ENDPOINTS.md  # Documentación técnica de la API
+│   └── LIBRO_APRENDIZAJE.md        # Libro de aprendizaje del proyecto
 ├── database.sql                 # Script SQL para crear la base de datos
 ├── requirements.txt            # Dependencias del proyecto
 ├── .env                        # Variables de entorno (crear)
@@ -1036,8 +1048,5 @@ Este proyecto es de uso educativo.
 
 Este proyecto incluye documentación adicional para facilitar su uso:
 
-- **[docs/INICIO_RAPIDO.md](docs/INICIO_RAPIDO.md)**: Guía paso a paso para poner en marcha el sistema rápidamente
-- **[docs/DOCKER.md](docs/DOCKER.md)**: Guía completa de Docker para desarrollo y producción
 - **[docs/DOCUMENTACION_ENDPOINTS.md](docs/DOCUMENTACION_ENDPOINTS.md)**: Documentación técnica detallada de todos los endpoints de la API
-- **[docs/LIBRO_APRENDIZAJE.md](docs/LIBRO_APRENDIZAJE.md)**: Libro de aprendizaje completo sobre el proyecto
-- **[frontend/README.md](frontend/README.md)**: Documentación del frontend web
+- **[docs/LIBRO_APRENDIZAJE.md](docs/LIBRO_APRENDIZAJE.md)**: Libro de aprendizaje completo sobre el proyecto y FastAPI

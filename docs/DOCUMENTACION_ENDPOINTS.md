@@ -380,7 +380,7 @@ curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
 ### 2.6. Eliminar Habitación
 **DELETE** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Elimina una habitación del sistema.
+**Descripción:** Elimina una habitación del sistema. Solo se puede eliminar si todas las reservas asociadas están completadas o canceladas. Las reservas completadas/canceladas y sus pagos asociados se eliminan automáticamente.
 
 **Autenticación:** Requerida (Administrador)
 
@@ -395,9 +395,12 @@ curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
 ```
 
 **Errores:**
+- `400`: No se puede eliminar porque tiene reservas activas (pendientes o confirmadas)
 - `401`: No autenticado
 - `403`: No es administrador
 - `404`: Habitación no encontrada
+
+**Nota:** Si la habitación tiene reservas con estado "pendiente" o "confirmada", no se puede eliminar. Primero deben completarse o cancelarse esas reservas.
 
 ---
 
@@ -481,6 +484,8 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
   "id": 1,
   "usuario_id": 1,
   "habitacion_id": 1,
+  "numero_habitacion": "101",
+  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
@@ -520,7 +525,10 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
 [
   {
     "id": 1,
+    "usuario_id": 1,
     "habitacion_id": 1,
+    "numero_habitacion": "101",
+    "nombre_usuario": "Juan Pérez",
     "fecha_entrada": "2024-02-01",
     "fecha_salida": "2024-02-05",
     "numero_huespedes": 2,
@@ -546,7 +554,7 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
 - `skip` (integer, opcional): Número de registros a omitir (default: 0)
 - `limit` (integer, opcional): Número máximo de registros (default: 100, máx: 100)
 
-**Response 200:** Array de reservas (mismo formato que 3.2)
+**Response 200:** Array de reservas con `numero_habitacion` y `nombre_usuario` incluidos (mismo formato que 3.2)
 
 **Errores:**
 - `401`: No autenticado
@@ -570,6 +578,8 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
   "id": 1,
   "usuario_id": 1,
   "habitacion_id": 1,
+  "numero_habitacion": "101",
+  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
