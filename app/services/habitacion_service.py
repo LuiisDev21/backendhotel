@@ -3,7 +3,8 @@ from fastapi import HTTPException, status
 from datetime import date
 from typing import Optional, List
 from app.models.habitacion import Habitacion
-from app.models.reserva import Reserva
+from app.models.reserva import Reserva, EstadoReserva
+from app.models.pago import Pago
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
 
@@ -71,15 +72,34 @@ class HabitacionService:
     def EliminarHabitacion(self, IdHabitacion: int):
         HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
         
-        # Verificar si hay reservas asociadas
-        ReservasAsociadas = self.SesionBD.query(Reserva).filter(
-            Reserva.habitacion_id == IdHabitacion
+        # Verificar si hay reservas activas (pendientes o confirmadas)
+        ReservasActivas = self.SesionBD.query(Reserva).filter(
+            Reserva.habitacion_id == IdHabitacion,
+            Reserva.estado.in_([EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA])
         ).count()
         
-        if ReservasAsociadas > 0:
+        if ReservasActivas > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se puede eliminar la habitación porque tiene {ReservasAsociadas} reserva(s) asociada(s). Por favor, cancela o elimina las reservas primero."
+                detail=f"No se puede eliminar la habitación porque tiene {ReservasActivas} reserva(s) activa(s) (pendiente(s) o confirmada(s)). Por favor, completa o cancela las reservas primero."
             )
+        
+        # Obtener IDs de reservas completadas o canceladas asociadas a esta habitación
+        ReservasAEliminar = self.SesionBD.query(Reserva.id).filter(
+            Reserva.habitacion_id == IdHabitacion,
+            Reserva.estado.in_([EstadoReserva.COMPLETADA, EstadoReserva.CANCELADA])
+        ).all()
+        IdsReservas = [r.id for r in ReservasAEliminar]
+        
+        if IdsReservas:
+            # Eliminar los pagos asociados a esas reservas
+            self.SesionBD.query(Pago).filter(
+                Pago.reserva_id.in_(IdsReservas)
+            ).delete(synchronize_session=False)
+            
+            # Eliminar las reservas completadas o canceladas
+            self.SesionBD.query(Reserva).filter(
+                Reserva.id.in_(IdsReservas)
+            ).delete(synchronize_session=False)
         
         self.Repositorio.Eliminar(HabitacionEncontrada)
