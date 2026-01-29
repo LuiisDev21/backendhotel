@@ -1,11 +1,7 @@
 -- =====================================================
--- Sistema de Reservas de Hotel - Script SQL
--- Base de datos: PostgreSQL
+-- Royal Palm Hotel - Base de Datos
 -- =====================================================
 
--- Crear base de datos (ejecutar como superusuario)
--- CREATE DATABASE hotel_db;
--- \c hotel_db;
 
 -- =====================================================
 -- Tabla: usuarios
@@ -35,6 +31,7 @@ CREATE TABLE IF NOT EXISTS habitaciones (
     capacidad INTEGER NOT NULL,
     precio_por_noche NUMERIC(10, 2) NOT NULL,
     disponible BOOLEAN DEFAULT TRUE,
+    imagen_url VARCHAR(500),
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -84,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_pagos_reserva ON pagos(reserva_id);
 CREATE INDEX IF NOT EXISTS idx_pagos_transaccion ON pagos(numero_transaccion);
 
 -- =====================================================
--- Trigger para actualizar fecha_actualizacion en reservas
+-- Trigger para actualizar la fecha de actualización en reservas
 -- =====================================================
 CREATE OR REPLACE FUNCTION update_fecha_actualizacion()
 RETURNS TRIGGER AS $$
@@ -100,25 +97,10 @@ FOR EACH ROW
 EXECUTE FUNCTION update_fecha_actualizacion();
 
 -- =====================================================
--- Datos de ejemplo (opcional)
+-- Datos de ejemplo 
 -- =====================================================
 
--- Insertar usuario administrador de ejemplo
--- NOTA: Para generar el hash de la contraseña, ejecuta:
--- python scripts/create_admin.py <tu_contraseña>
--- Luego copia el hash generado y úsalo en el INSERT siguiente
--- 
--- Ejemplo con contraseña "admin123":
--- INSERT INTO usuarios (email, nombre, apellido, hashed_password, es_administrador)
--- VALUES (
---     'admin@hotel.com',
---     'Administrador',
---     'Sistema',
---     '<hash_generado_por_el_script>',
---     TRUE
--- ) ON CONFLICT (email) DO NOTHING;
-
--- Insertar habitaciones de ejemplo
+-- Insertar habitaciones
 INSERT INTO habitaciones (numero, tipo, descripcion, capacidad, precio_por_noche, disponible)
 VALUES
     ('101', 'Individual', 'Habitación individual con cama de tamaño completo', 1, 50.00, TRUE),
@@ -130,10 +112,10 @@ VALUES
 ON CONFLICT (numero) DO NOTHING;
 
 -- =====================================================
--- Vistas útiles (opcional)
+-- Vistas
 -- =====================================================
 
--- Vista de reservas con información completa
+-- Vista de reservas
 CREATE OR REPLACE VIEW vista_reservas_completas AS
 SELECT 
     r.id,
@@ -170,11 +152,3 @@ LEFT JOIN reservas r ON h.id = r.habitacion_id
     AND r.fecha_salida >= CURRENT_DATE
 GROUP BY h.id, h.numero, h.tipo, h.descripcion, h.capacidad, h.precio_por_noche, h.disponible;
 
--- =====================================================
--- Comentarios finales
--- =====================================================
--- Para ejecutar este script:
--- 1. Asegúrate de tener PostgreSQL instalado
--- 2. Crea la base de datos: CREATE DATABASE hotel_db;
--- 3. Ejecuta este script: psql -U usuario -d hotel_db -f database.sql
--- 4. O ejecuta línea por línea en psql

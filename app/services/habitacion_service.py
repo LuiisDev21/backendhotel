@@ -1,13 +1,24 @@
+""" 
+Servicio de Habitaciones, se define el servicio de la habitacion con SQLAlchemy.
+- CrearHabitacion: Crea una nueva habitación.
+- ObtenerHabitacion: Obtiene una habitación por su ID.
+- ListarHabitaciones: Lista todas las habitaciones.
+- BuscarDisponibles: Busca las habitaciones disponibles para una fecha de entrada y salida.
+- ActualizarHabitacion: Actualiza una habitación existente.
+- EliminarHabitacion: Elimina una habitación existente.
+"""
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import date
 from typing import Optional, List
 from app.models.habitacion import Habitacion
+from app.models.reserva import Reserva, EstadoReserva
+from app.models.pago import Pago
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
 
 
-class HabitacionService:
+class ServicioHabitacion:
     def __init__(self, SesionBD: Session):
         self.Repositorio = HabitacionRepository(SesionBD)
         self.SesionBD = SesionBD
@@ -16,7 +27,7 @@ class HabitacionService:
         if self.Repositorio.ObtenerPorNumero(DatosHabitacion.numero):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe una habitación con ese número"
+                detail="Ya existe una habitacion con ese numero"
             )
         
         HabitacionNueva = Habitacion(**DatosHabitacion.model_dump())
@@ -27,7 +38,7 @@ class HabitacionService:
         if not HabitacionEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Habitación no encontrada"
+                detail="Habitacion no encontrada"
             )
         return HabitacionEncontrada
 
@@ -69,4 +80,34 @@ class HabitacionService:
 
     def EliminarHabitacion(self, IdHabitacion: int):
         HabitacionEncontrada = self.ObtenerHabitacion(IdHabitacion)
+        
+        ReservasActivas = self.SesionBD.query(Reserva).filter(
+            Reserva.habitacion_id == IdHabitacion,
+            Reserva.estado.in_([EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA])
+        ).count()
+        
+        if ReservasActivas > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar la habitacion porque tiene {ReservasActivas} reserva(s) activa(s) (pendiente(s) o confirmada(s)). Por favor, completa o cancela las reservas primero."
+            )
+        
+        # Obtener IDs de reservas completadas o canceladas asociadas a esta habitación
+        ReservasAEliminar = self.SesionBD.query(Reserva.id).filter(
+            Reserva.habitacion_id == IdHabitacion,
+            Reserva.estado.in_([EstadoReserva.COMPLETADA, EstadoReserva.CANCELADA])
+        ).all()
+        IdsReservas = [r.id for r in ReservasAEliminar]
+        
+        if IdsReservas:
+            # Eliminar los pagos asociados a esas reservas
+            self.SesionBD.query(Pago).filter(
+                Pago.reserva_id.in_(IdsReservas)
+            ).delete(synchronize_session=False)
+            
+            # Eliminar las reservas completadas o canceladas
+            self.SesionBD.query(Reserva).filter(
+                Reserva.id.in_(IdsReservas)
+            ).delete(synchronize_session=False)
+        
         self.Repositorio.Eliminar(HabitacionEncontrada)

@@ -1,14 +1,21 @@
+"""  
+Servicio de Usuarios, se define el servicio de usuarios con SQLAlchemy.
+- CrearUsuario: Crea un nuevo usuario.
+- AutenticarUsuario: Autentica un usuario.
+- ObtenerUsuario: Obtiene un usuario por su ID.
+- ListarUsuarios: Lista todos los usuarios.
+"""
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import timedelta
 from app.models.usuario import Usuario
 from app.repositories.usuario_repository import UsuarioRepository
 from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token
-from app.core.security import VerificarContrasena, ObtenerHashContrasena, CrearTokenAcceso
+from app.core.security import VerificarContrasena, HashearContra, CrearTokenAcceso
 from app.core.config import settings
 
 
-class UsuarioService:
+class ServicioUsuarios:
     def __init__(self, SesionBD: Session):
         self.Repositorio = UsuarioRepository(SesionBD)
         self.SesionBD = SesionBD
@@ -20,17 +27,19 @@ class UsuarioService:
                 detail="El email ya está registrado"
             )
         
-        ContrasenaEncriptada = ObtenerHashContrasena(DatosUsuario.password)
-        UsuarioNuevo = Usuario(
+        ContrasenaEncriptada = HashearContra(DatosUsuario.password)
+        
+        NuevoUsuario = Usuario(
             email=DatosUsuario.email,
             nombre=DatosUsuario.nombre,
             apellido=DatosUsuario.apellido,
             telefono=DatosUsuario.telefono,
             hashed_password=ContrasenaEncriptada
         )
-        return self.Repositorio.Crear(UsuarioNuevo)
+        return self.Repositorio.Crear(NuevoUsuario)
 
     def AutenticarUsuario(self, DatosLogin: UsuarioLogin) -> Token:
+        
         UsuarioEncontrado = self.Repositorio.ObtenerPorEmail(DatosLogin.email)
         if not UsuarioEncontrado or not VerificarContrasena(DatosLogin.password, UsuarioEncontrado.hashed_password):
             raise HTTPException(
@@ -51,7 +60,7 @@ class UsuarioService:
         )
         return Token(access_token=TokenAcceso, token_type="bearer")
 
-    def ObtenerUsuarioActual(self, IdUsuario: int) -> Usuario:
+    def ObtenerUsuario(self, IdUsuario: int) -> Usuario:
         UsuarioEncontrado = self.Repositorio.ObtenerPorId(IdUsuario)
         if not UsuarioEncontrado:
             raise HTTPException(

@@ -1,17 +1,36 @@
+"""
+Funciones de seguridad para la API, se definen las funciones para la autenticación y autorización de los endpoints.
+- VerificarContrasena: Verifica una contraseña plana contra un hash bcrypt.
+- HashearContra: Hashea una contraseña plana y la devuelve como hash bcrypt.
+- CrearTokenAcceso: Crea un token de acceso JWT.
+- DecodificarTokenAcceso: Decodifica un token de acceso JWT.
+"""
+
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+#! Configuracion de Bcrypt
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__ident="2b"
+)
 
 
 def VerificarContrasena(ContrasenaPlana: str, ContrasenaEncriptada: str) -> bool:
-    return pwd_context.verify(ContrasenaPlana, ContrasenaEncriptada)
+    try:
+        if not isinstance(ContrasenaPlana, str) or not isinstance(ContrasenaEncriptada, str):
+            return False
+        return pwd_context.verify(ContrasenaPlana, ContrasenaEncriptada)
+    except (ValueError, TypeError, AttributeError) as e:
+        return False
 
 
-def ObtenerHashContrasena(Contrasena: str) -> str:
+def HashearContra(Contrasena: str) -> str:
     return pwd_context.hash(Contrasena)
 
 

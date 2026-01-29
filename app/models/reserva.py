@@ -1,3 +1,6 @@
+""" 
+Modelo de Reserva, se define el modelo de la reserva con SQLAlchemy.
+"""
 from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime, Numeric
 from sqlalchemy.orm import relationship
 from datetime import datetime

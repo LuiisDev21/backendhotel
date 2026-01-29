@@ -1,3 +1,7 @@
+"""
+Modelo de Habitacion, se define el modelo de la habitacion con SQLAlchemy.
+"""
+
 from sqlalchemy import Column, Integer, String, Numeric, Boolean, Text, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -14,6 +18,7 @@ class Habitacion(Base):
     capacidad = Column(Integer, nullable=False)
     precio_por_noche = Column(Numeric(10, 2), nullable=False)
     disponible = Column(Boolean, default=True)
+    imagen_url = Column(String, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
 
     reservas = relationship("Reserva", back_populates="habitacion")

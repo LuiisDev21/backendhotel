@@ -1,3 +1,13 @@
+""" 
+Servicio de Reservas, se define el servicio de reservas con SQLAlchemy.
+- CalcularPrecioTotal: Calcula el precio total de una reserva.
+- CrearReserva: Crea una nueva reserva.
+- ObtenerReserva: Obtiene una reserva por su ID.
+- ListarReservasUsuario: Lista todas las reservas de un usuario.
+- ListarTodasReservas: Lista todas las reservas.
+- ActualizarReserva: Actualiza una reserva existente.
+- CancelarReserva: Cancela una reserva existente.
+"""
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import date, timedelta
@@ -10,7 +20,7 @@ from app.repositories.habitacion_repository import HabitacionRepository
 from app.schemas.reserva import ReservaCreate, ReservaUpdate
 
 
-class ReservaService:
+class ServicioReserva:
     def __init__(self, SesionBD: Session):
         self.Repositorio = ReservaRepository(SesionBD)
         self.RepositorioHabitacion = HabitacionRepository(SesionBD)
@@ -21,7 +31,7 @@ class ReservaService:
         Habitacion: Habitacion,
         FechaEntrada: date,
         FechaSalida: date
-    ) -> Decimal:
+        ) -> Decimal:
         NumeroNoches = (FechaSalida - FechaEntrada).days
         if NumeroNoches <= 0:
             raise HTTPException(
@@ -34,24 +44,24 @@ class ReservaService:
         self,
         IdUsuario: int,
         DatosReserva: ReservaCreate
-    ) -> Reserva:
+        ) -> Reserva:
         HabitacionEncontrada = self.RepositorioHabitacion.ObtenerPorId(DatosReserva.habitacion_id)
         if not HabitacionEncontrada:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Habitación no encontrada"
+                detail="Habitacion no encontrada"
             )
         
         if not HabitacionEncontrada.disponible:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La habitación no está disponible"
+                detail="La habitación no esta disponible"
             )
         
         if DatosReserva.numero_huespedes > HabitacionEncontrada.capacidad:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"La habitación solo puede alojar {HabitacionEncontrada.capacidad} huéspedes"
+                detail=f"La habitacion solo puede alojar {HabitacionEncontrada.capacidad} huéspedes"
             )
         
         HabitacionesDisponibles = self.RepositorioHabitacion.BuscarDisponibles(
@@ -62,7 +72,7 @@ class ReservaService:
         if HabitacionEncontrada not in HabitacionesDisponibles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La habitación no está disponible en las fechas seleccionadas"
+                detail="La habitacion no esta disponible en las fechas seleccionadas"
             )
         
         PrecioTotal = self.CalcularPrecioTotal(
@@ -122,7 +132,7 @@ class ReservaService:
             if HabitacionEncontrada not in HabitacionesDisponibles:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="La habitación no está disponible en las nuevas fechas"
+                    detail="La habitacion no esta disponible en las nuevas fechas"
                 )
             
             ReservaEncontrada.precio_total = self.CalcularPrecioTotal(HabitacionEncontrada, FechaEntrada, FechaSalida)
@@ -137,7 +147,7 @@ class ReservaService:
         if ReservaEncontrada.estado == EstadoReserva.CANCELADA:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La reserva ya está cancelada"
+                detail="La reserva ya esta cancelada"
             )
         ReservaEncontrada.estado = EstadoReserva.CANCELADA
         return self.Repositorio.Actualizar(ReservaEncontrada)

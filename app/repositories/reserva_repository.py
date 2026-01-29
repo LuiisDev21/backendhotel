@@ -1,4 +1,13 @@
-from sqlalchemy.orm import Session
+""" 
+Repositorio de Reserva, se define el repositorio de la reserva con SQLAlchemy.
+- ObtenerPorId: Obtiene una reserva por su ID.
+- ObtenerPorUsuario: Obtiene todas las reservas de un usuario.
+- ObtenerTodas: Obtiene todas las reservas.
+- Crear: Crea una nueva reserva.
+- Actualizar: Actualiza una reserva existente.
+- Eliminar: Elimina una reserva existente.
+"""
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from app.models.reserva import Reserva
 
@@ -8,15 +17,24 @@ class ReservaRepository:
         self.SesionBD = SesionBD
 
     def ObtenerPorId(self, IdReserva: int) -> Optional[Reserva]:
-        return self.SesionBD.query(Reserva).filter(Reserva.id == IdReserva).first()
+        return self.SesionBD.query(Reserva).options(
+            joinedload(Reserva.habitacion),
+            joinedload(Reserva.usuario)
+        ).filter(Reserva.id == IdReserva).first()
 
     def ObtenerPorUsuario(self, IdUsuario: int, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
-        return self.SesionBD.query(Reserva).filter(
+        return self.SesionBD.query(Reserva).options(
+            joinedload(Reserva.habitacion),
+            joinedload(Reserva.usuario)
+        ).filter(
             Reserva.usuario_id == IdUsuario
         ).offset(Saltar).limit(Limite).all()
 
     def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
-        return self.SesionBD.query(Reserva).offset(Saltar).limit(Limite).all()
+        return self.SesionBD.query(Reserva).options(
+            joinedload(Reserva.habitacion),
+            joinedload(Reserva.usuario)
+        ).offset(Saltar).limit(Limite).all()
 
     def Crear(self, ReservaNueva: Reserva) -> Reserva:
         self.SesionBD.add(ReservaNueva)

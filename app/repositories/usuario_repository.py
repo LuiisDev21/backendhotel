@@ -1,3 +1,11 @@
+""" 
+Repositorio de Usuario, se define el repositorio de usuario con SQLAlchemy.
+- ObtenerPorId: Obtiene un usuario por su ID.
+- ObtenerTodos: Obtiene todos los usuarios.
+- ObtenerPorEmail: Obtiene un usuario por su email.
+- Crear: Crea un nuevo usuario.
+- Actualizar: Actualiza un usuario existente.
+"""
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.models.usuario import Usuario
@@ -17,12 +25,12 @@ class UsuarioRepository:
             self.SesionBD.rollback()
             raise
 
-    def Crear(self, UsuarioNuevo: Usuario) -> Usuario:
+    def Crear(self, NuevoUsuario: Usuario) -> Usuario:
         try:
-            self.SesionBD.add(UsuarioNuevo)
+            self.SesionBD.add(NuevoUsuario)
             self.SesionBD.commit()
-            self.SesionBD.refresh(UsuarioNuevo)
-            return UsuarioNuevo
+            self.SesionBD.refresh(NuevoUsuario)
+            return NuevoUsuario
         except Exception:
             self.SesionBD.rollback()
             raise

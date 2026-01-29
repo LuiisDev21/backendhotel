@@ -1,3 +1,6 @@
+"""
+Modelo de Usuario, se define el modelo de usuario con SQLAlchemy.
+"""
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime

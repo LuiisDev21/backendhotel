@@ -1,4 +1,4 @@
-# Documentación Técnica de Endpoints
+# RoyalPalms API Endpoints
 
 ## Base URL
 ```
@@ -110,25 +110,78 @@ Authorization: Bearer {access_token}
 
 ---
 
+### 1.4. Listar Usuarios
+**GET** `/auth/usuarios`
+
+**Descripción:** Obtiene una lista paginada de todos los usuarios registrados.
+
+**Autenticación:** Requerida (Administrador)
+
+**Query Parameters:**
+- `Saltar` (integer, opcional): Número de registros a omitir (default: 0, mín: 0)
+- `Limite` (integer, opcional): Número máximo de registros (default: 100, mín: 1, máx: 100)
+
+**Ejemplo:**
+```
+GET /auth/usuarios?Saltar=0&Limite=10
+```
+
+**Response 200:**
+```json
+[
+  {
+    "id": 1,
+    "email": "usuario@example.com",
+    "nombre": "Juan",
+    "apellido": "Pérez",
+    "telefono": "+505 1234-5678",
+    "es_administrador": false,
+    "activo": true,
+    "fecha_creacion": "2024-01-25T12:00:00"
+  }
+]
+```
+
+**Errores:**
+- `401`: No autenticado
+- `403`: No es administrador
+
+---
+
 ## 2. Módulo de Habitaciones
 
 ### 2.1. Crear Habitación
 **POST** `/habitaciones`
 
-**Descripción:** Crea una nueva habitación en el sistema.
+**Descripción:** Crea una nueva habitación en el sistema. Si se proporciona una imagen, se sube automáticamente a Supabase Storage y se asocia a la habitación.
 
 **Autenticación:** Requerida (Administrador)
 
-**Request Body:**
-```json
-{
-  "numero": "string (único, máx. 10 caracteres)",
-  "tipo": "string (máx. 50 caracteres)",
-  "descripcion": "string (opcional)",
-  "capacidad": "integer (mín. 1)",
-  "precio_por_noche": "decimal (mín. 0.01)",
-  "disponible": "boolean (default: true)"
-}
+**Content-Type:** `multipart/form-data`
+
+**Request Body (FormData):**
+- `numero` (string, requerido): Número único de la habitación (máx. 10 caracteres)
+- `tipo` (string, requerido): Tipo de habitación (máx. 50 caracteres)
+- `descripcion` (string, opcional): Descripción de la habitación
+- `capacidad` (integer, requerido): Capacidad de huéspedes (mín. 1)
+- `precio_por_noche` (decimal, requerido): Precio por noche (mín. 0.01)
+- `disponible` (boolean, opcional): Disponibilidad de la habitación (default: true)
+- `archivo` (file, opcional): Archivo de imagen
+  - Formatos permitidos: JPEG, JPG, PNG, WebP
+  - Tamaño máximo: 5MB
+  - Si se proporciona, se sube automáticamente a Supabase Storage
+
+**Ejemplo con curl:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/habitaciones" \
+  -H "Authorization: Bearer {token}" \
+  -F "numero=101" \
+  -F "tipo=Individual" \
+  -F "descripcion=Habitación individual con vista al mar" \
+  -F "capacidad=1" \
+  -F "precio_por_noche=50.00" \
+  -F "disponible=true" \
+  -F "archivo=@/ruta/a/imagen.jpg"
 ```
 
 **Response 200:**
@@ -137,19 +190,23 @@ Authorization: Bearer {access_token}
   "id": 1,
   "numero": "101",
   "tipo": "Individual",
-  "descripcion": "Habitación individual",
+  "descripcion": "Habitación individual con vista al mar",
   "capacidad": 1,
   "precio_por_noche": 50.00,
   "disponible": true,
+  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
   "fecha_creacion": "2024-01-25T12:00:00"
 }
 ```
 
+**Nota:** Si se proporciona una imagen, se sube automáticamente a Supabase Storage y la URL se asigna a `imagen_url`. Si la subida de imagen falla, la habitación se crea igualmente pero sin imagen.
+
 **Errores:**
-- `400`: Número de habitación ya existe
+- `400`: Número de habitación ya existe, tipo de archivo no permitido, archivo demasiado grande
 - `401`: No autenticado
 - `403`: No es administrador
 - `422`: Datos de validación inválidos
+- `500`: Error al subir imagen a Supabase (si se proporcionó archivo)
 
 ---
 
@@ -180,6 +237,7 @@ GET /habitaciones?skip=0&limit=10
     "capacidad": 1,
     "precio_por_noche": 50.00,
     "disponible": true,
+    "imagen_url": null,
     "fecha_creacion": "2024-01-25T12:00:00"
   }
 ]
@@ -216,6 +274,7 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
     "capacidad": 2,
     "precio_por_noche": 75.00,
     "disponible": true,
+    "imagen_url": null,
     "fecha_creacion": "2024-01-25T12:00:00"
   }
 ]
@@ -247,6 +306,7 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
   "capacidad": 1,
   "precio_por_noche": 50.00,
   "disponible": true,
+  "imagen_url": null,
   "fecha_creacion": "2024-01-25T12:00:00"
 }
 ```
@@ -259,22 +319,36 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
 ### 2.5. Actualizar Habitación
 **PUT** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Actualiza los datos de una habitación existente.
+**Descripción:** Actualiza los datos de una habitación existente. Si se proporciona una imagen, se sube automáticamente a Supabase Storage y reemplaza la imagen anterior.
 
 **Autenticación:** Requerida (Administrador)
+
+**Content-Type:** `multipart/form-data`
 
 **Path Parameters:**
 - `habitacion_id` (integer): ID de la habitación
 
-**Request Body (todos los campos opcionales):**
-```json
-{
-  "tipo": "string (opcional)",
-  "descripcion": "string (opcional)",
-  "capacidad": "integer (opcional, mín. 1)",
-  "precio_por_noche": "decimal (opcional, mín. 0.01)",
-  "disponible": "boolean (opcional)"
-}
+**Request Body (FormData):**
+- `tipo` (string, requerido): Tipo de habitación
+- `descripcion` (string, opcional): Descripción de la habitación
+- `capacidad` (integer, requerido): Capacidad de huéspedes (mín. 1)
+- `precio_por_noche` (decimal, requerido): Precio por noche (mín. 0.01)
+- `disponible` (string, requerido): Disponibilidad ("true" o "false")
+- `archivo` (file, opcional): Archivo de imagen
+  - Formatos permitidos: JPEG, JPG, PNG, WebP
+  - Tamaño máximo: 5MB
+  - Si se proporciona, se sube automáticamente a Supabase Storage y reemplaza la imagen anterior
+
+**Ejemplo con curl:**
+```bash
+curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
+  -H "Authorization: Bearer {token}" \
+  -F "tipo=Individual Premium" \
+  -F "descripcion=Habitación individual actualizada" \
+  -F "capacidad=1" \
+  -F "precio_por_noche=55.00" \
+  -F "disponible=true" \
+  -F "archivo=@/ruta/a/nueva-imagen.jpg"
 ```
 
 **Response 200:**
@@ -287,21 +361,26 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
   "capacidad": 1,
   "precio_por_noche": 55.00,
   "disponible": true,
+  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_xyz789.jpg",
   "fecha_creacion": "2024-01-25T12:00:00"
 }
 ```
 
+**Nota:** Si se proporciona una imagen, se sube automáticamente a Supabase Storage y la URL se actualiza en `imagen_url`. Si la subida de imagen falla, los demás campos se actualizan igualmente.
+
 **Errores:**
+- `400`: Tipo de archivo no permitido, archivo demasiado grande
 - `401`: No autenticado
 - `403`: No es administrador
 - `404`: Habitación no encontrada
+- `500`: Error al subir imagen a Supabase (si se proporcionó archivo)
 
 ---
 
 ### 2.6. Eliminar Habitación
 **DELETE** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Elimina una habitación del sistema.
+**Descripción:** Elimina una habitación del sistema. Solo se puede eliminar si todas las reservas asociadas están completadas o canceladas. Las reservas completadas/canceladas y sus pagos asociados se eliminan automáticamente.
 
 **Autenticación:** Requerida (Administrador)
 
@@ -316,9 +395,66 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
 ```
 
 **Errores:**
+- `400`: No se puede eliminar porque tiene reservas activas (pendientes o confirmadas)
 - `401`: No autenticado
 - `403`: No es administrador
 - `404`: Habitación no encontrada
+
+**Nota:** Si la habitación tiene reservas con estado "pendiente" o "confirmada", no se puede eliminar. Primero deben completarse o cancelarse esas reservas.
+
+---
+
+### 2.7. Subir Imagen de Habitación (Endpoint Separado)
+**POST** `/habitaciones/{habitacion_id}/imagen`
+
+**Descripción:** Sube una imagen para una habitación y actualiza la URL en la base de datos. La imagen se almacena en Supabase Storage.
+
+**Nota:** Este endpoint está disponible para compatibilidad, pero se recomienda usar el endpoint de crear o actualizar habitación con el campo `archivo` en FormData, ya que sube la imagen automáticamente en una sola operación.
+
+**Autenticación:** Requerida (Administrador)
+
+**Path Parameters:**
+- `habitacion_id` (integer): ID de la habitación
+
+**Request Body (multipart/form-data):**
+- `archivo` (file, requerido): Archivo de imagen
+  - Formatos permitidos: JPEG, JPG, PNG, WebP
+  - Tamaño máximo: 5MB
+
+**Ejemplo con curl:**
+```bash
+curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
+  -H "Authorization: Bearer {token}" \
+  -F "archivo=@/ruta/a/imagen.jpg"
+```
+
+**Response 200:**
+```json
+{
+  "message": "Imagen subida correctamente",
+  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
+  "habitacion": {
+    "id": 1,
+    "numero": "101",
+    "tipo": "Individual",
+    "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
+    ...
+  }
+}
+```
+
+**Errores:**
+- `400`: Tipo de archivo no permitido o archivo demasiado grande
+- `401`: No autenticado
+- `403`: No es administrador
+- `404`: Habitación no encontrada
+- `500`: Error al subir la imagen o Supabase no configurado
+
+**Notas:**
+- Requiere que Supabase esté configurado en las variables de entorno
+- La imagen se almacena en el bucket `habitaciones` de Supabase Storage
+- El nombre del archivo se genera automáticamente: `{habitacion_id}_{uuid}.{extension}`
+- Si ya existe una imagen, se reemplaza automáticamente
 
 ---
 
@@ -348,6 +484,8 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
   "id": 1,
   "usuario_id": 1,
   "habitacion_id": 1,
+  "numero_habitacion": "101",
+  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
@@ -387,7 +525,10 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
 [
   {
     "id": 1,
+    "usuario_id": 1,
     "habitacion_id": 1,
+    "numero_habitacion": "101",
+    "nombre_usuario": "Juan Pérez",
     "fecha_entrada": "2024-02-01",
     "fecha_salida": "2024-02-05",
     "numero_huespedes": 2,
@@ -413,7 +554,7 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
 - `skip` (integer, opcional): Número de registros a omitir (default: 0)
 - `limit` (integer, opcional): Número máximo de registros (default: 100, máx: 100)
 
-**Response 200:** Array de reservas (mismo formato que 3.2)
+**Response 200:** Array de reservas con `numero_habitacion` y `nombre_usuario` incluidos (mismo formato que 3.2)
 
 **Errores:**
 - `401`: No autenticado
@@ -437,6 +578,8 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
   "id": 1,
   "usuario_id": 1,
   "habitacion_id": 1,
+  "numero_habitacion": "101",
+  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
@@ -763,3 +906,10 @@ GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capaci
    - Los administradores tienen acceso completo a todos los recursos
 
 5. **Cálculo de Precios**: El precio total se calcula automáticamente como: `precio_por_noche × número_de_noches`
+
+6. **Variables de Entorno**: La API utiliza las siguientes variables (ver `.env.example` en la raíz del proyecto):
+   - **Obligatorias**: `DATABASE_URL`, `SECRET_KEY`
+   - **JWT**: `ALGORITHM` (default: HS256), `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30)
+   - **API**: `API_V1_PREFIX` (default: /api/v1), `PROJECT_NAME`
+   - **Supabase** (para imágenes de habitaciones): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET` (default: habitaciones)
+   - **Pool de BD** (opcional): `POOL_SIZE` (default: 20), `MAX_OVERFLOW` (default: 50)
