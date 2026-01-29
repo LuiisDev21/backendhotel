@@ -318,14 +318,15 @@ from sqlalchemy.orm import sessionmaker
 
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,      # Verifica conexiones antes de usarlas
-    pool_recycle=300,        # Recicla conexiones cada 5 minutos
-    pool_size=5,             # Tamaño del pool de conexiones
-    max_overflow=10,         # Conexiones adicionales permitidas
-    echo=False               # Cambiar a True para ver queries SQL
+    pool_pre_ping=True,   
+    pool_recycle=300,    
+    pool_size=settings.POOL_SIZE,
+    max_overflow=settings.MAX_OVERFLOW,
+    echo=False,          
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 Base = declarative_base()
 ```
 
@@ -1629,7 +1630,7 @@ app.add_middleware(
 - Permite que frontend en otro dominio acceda a la API
 - En producción, especificar orígenes permitidos:
   ```python
-  allow_origins=["https://mi-frontend.com"]
+  allow_origins=["https://royalpalms.com"]
   ```
 
 ### 10.5 Middleware Personalizado
@@ -1761,7 +1762,7 @@ PROJECT_NAME=RoyalPalms API
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://mi-dominio.com"],  # Especificar orígenes
+    allow_origins=["https://royalpalms.com"],  # Especificar orígenes
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
@@ -1859,9 +1860,7 @@ def CrearHabitacion(DatosHabitacion: HabitacionCreate):
     return Repositorio.Crear(HabitacionNueva)
 ```
 
-**Español en Código**:
-- Funciones, variables, mensajes en español
-- Comentarios en español
+
 
 ### 13.3 Manejo de Transacciones
 
@@ -2031,28 +2030,6 @@ pago.estado = EstadoPago.COMPLETADO
 reserva.estado = EstadoReserva.CONFIRMADA
 ```
 
-### 14.4 Ejercicios Prácticos
-
-#### Ejercicio 1: Agregar Validación
-
-Agregar validación en `ServicioHabitacion.CrearHabitacion`:
-- Precio debe ser mayor a 0
-- Capacidad debe ser entre 1 y 10
-
-#### Ejercicio 2: Nuevo Endpoint
-
-Crear endpoint `GET /api/v1/habitaciones/{id}/reservas`:
-- Retorna todas las reservas de una habitación
-- Requiere autenticación
-
-#### Ejercicio 3: Filtros Avanzados
-
-Agregar filtros a `ListarHabitaciones`:
-- Por tipo
-- Por rango de precio
-- Por disponibilidad
-
----
 
 ## Conclusión
 
