@@ -221,27 +221,41 @@ pydantic[email]
 
 ### 3.3 Configuración de Variables de Entorno
 
-Crear archivo `.env` en la raíz del proyecto:
+Crear archivo `.env` en la raíz del proyecto (puedes copiar `.env.example`):
 
 ```env
 DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/nombre_bd
 SECRET_KEY=
 SUPABASE_URL=
 SUPABASE_KEY=
-SUPABASE_BUCKET=
+SUPABASE_BUCKET=habitaciones
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 API_V1_PREFIX=/api/v1
 PROJECT_NAME=RoyalPalms API
+
+# Opcional: pool de conexiones (valores por defecto: 20 y 50)
+# POOL_SIZE=20
+# MAX_OVERFLOW=50
 ```
 
 #### Explicación de Variables
 
-- **DATABASE_URL**: URL de conexión a PostgreSQL
-- **SECRET_KEY**: Clave secreta para firmar tokens JWT (debe ser segura)
-- **ALGORITHM**: Algoritmo de encriptación JWT (HS256)
-- **ACCESS_TOKEN_EXPIRE_MINUTES**: Tiempo de expiración de tokens (30 min)
-- **API_V1_PREFIX**: Prefijo para todas las rutas API
+| Variable | Requerida | Descripción |
+|----------|-----------|-------------|
+| **DATABASE_URL** | Sí | URL de conexión a PostgreSQL |
+| **SECRET_KEY** | Sí | Clave secreta para firmar tokens JWT (debe ser segura) |
+| **ALGORITHM** | No (default: HS256) | Algoritmo de firma JWT |
+| **ACCESS_TOKEN_EXPIRE_MINUTES** | No (default: 30) | Tiempo de expiración de tokens en minutos |
+| **API_V1_PREFIX** | No (default: /api/v1) | Prefijo para todas las rutas API |
+| **PROJECT_NAME** | No (default: RoyalPalms API) | Nombre de la API |
+| **SUPABASE_URL** | No* | URL del proyecto Supabase (para subida de imágenes de habitaciones) |
+| **SUPABASE_KEY** | No* | Clave anónima/service de Supabase |
+| **SUPABASE_BUCKET** | No (default: habitaciones) | Nombre del bucket en Supabase Storage |
+| **POOL_SIZE** | No (default: 20) | Número de conexiones en el pool de la BD |
+| **MAX_OVERFLOW** | No (default: 50) | Conexiones adicionales permitidas en el pool |
+
+\* Requeridas solo si se usan imágenes de habitaciones (Supabase Storage).
 
 ### 3.4 Configuración de la Base de Datos
 
@@ -257,10 +271,10 @@ CREATE DATABASE nombre_bd;
 psql -U usuario -d nombre_bd -f database.sql
 ```
 
-O usar el script Python:
+O crear las tablas con SQLAlchemy:
 
 ```bash
-python scripts/init_database.py
+python -m app.core.init_db
 ```
 
 ### 3.5 Iniciar el Servidor
@@ -277,10 +291,11 @@ El servidor estará disponible en: `http://127.0.0.1:8000`
 
 ### 3.6 Estructura de Configuración
 
-El archivo `app/core/config.py` carga las variables de entorno:
+El archivo `app/core/config.py` carga las variables de entorno (Pydantic Settings):
 
 ```python
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -289,6 +304,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "RoyalPalms API"
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_KEY: Optional[str] = None
+    SUPABASE_BUCKET: str = "habitaciones"
+    POOL_SIZE: int = 20
+    MAX_OVERFLOW: int = 50
 
     class Config:
         env_file = ".env"
@@ -1755,6 +1775,11 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 API_V1_PREFIX=/api/v1
 PROJECT_NAME=RoyalPalms API
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu_clave_supabase
+SUPABASE_BUCKET=habitaciones
+POOL_SIZE=20
+MAX_OVERFLOW=50
 ```
 
 #### Configuración de CORS

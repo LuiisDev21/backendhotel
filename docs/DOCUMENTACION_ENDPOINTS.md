@@ -906,3 +906,10 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
    - Los administradores tienen acceso completo a todos los recursos
 
 5. **Cálculo de Precios**: El precio total se calcula automáticamente como: `precio_por_noche × número_de_noches`
+
+6. **Variables de Entorno**: La API utiliza las siguientes variables (ver `.env.example` en la raíz del proyecto):
+   - **Obligatorias**: `DATABASE_URL`, `SECRET_KEY`
+   - **JWT**: `ALGORITHM` (default: HS256), `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30)
+   - **API**: `API_V1_PREFIX` (default: /api/v1), `PROJECT_NAME`
+   - **Supabase** (para imágenes de habitaciones): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET` (default: habitaciones)
+   - **Pool de BD** (opcional): `POOL_SIZE` (default: 20), `MAX_OVERFLOW` (default: 50)
