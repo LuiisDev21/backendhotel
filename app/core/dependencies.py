@@ -1,3 +1,13 @@
+"""
+Dependencias de FastAPI, se definen las dependencias para la autenticación y autorización de los endpoints.
+- OAuth2PasswordBearer: Extrae automáticamente el token del header `Authorization: Bearer <token>`
+- ObtenerUsuario: Obtiene el usuario actual a partir del token
+- ObtenerAdministrador: Verifica si el usuario actual es administrador
+"""
+
+
+
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -8,7 +18,7 @@ from app.repositories.usuario_repository import UsuarioRepository
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/api/v1/auth/login")
 
 
-async def ObtenerUsuarioActual(
+async def ObtenerUsuario(
     Token: str = Depends(oauth2_scheme),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
@@ -55,8 +65,8 @@ async def ObtenerUsuarioActual(
     return UsuarioEncontrado
 
 
-async def ObtenerAdministradorActual(
-    UsuarioActual = Depends(ObtenerUsuarioActual)
+async def ObtenerAdministrador(
+    UsuarioActual = Depends(ObtenerUsuario)
 ):
     if not UsuarioActual.es_administrador:
         raise HTTPException(

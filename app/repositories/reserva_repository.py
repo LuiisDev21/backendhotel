@@ -1,3 +1,12 @@
+""" 
+Repositorio de Reserva, se define el repositorio de la reserva con SQLAlchemy.
+- ObtenerPorId: Obtiene una reserva por su ID.
+- ObtenerPorUsuario: Obtiene todas las reservas de un usuario.
+- ObtenerTodas: Obtiene todas las reservas.
+- Crear: Crea una nueva reserva.
+- Actualizar: Actualiza una reserva existente.
+- Eliminar: Elimina una reserva existente.
+"""
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from app.models.reserva import Reserva

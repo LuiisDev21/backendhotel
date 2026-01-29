@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,46 +8,40 @@ venv/
 ENV/
 .venv
 
-# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Environment
 .env
 .env.local
 .env.*.local
 
-# Git
+
 .git/
 .gitignore
 
-# Documentation
 docs/
 *.md
 !README.md
 
-# Frontend (si está en el mismo repo)
 frontend/
 node_modules/
 
-# Docker
+
 Dockerfile
 docker-compose.yml
 .dockerignore
 
-# Logs
+
 *.log
 
-# Database
 *.db
 *.sqlite
 
-# OS
+
 .DS_Store
 Thumbs.db
 
-# Scripts de desarrollo
 scripts/create_admin.py

@@ -1,19 +1,29 @@
+""" 
+Routers de Habitaciones, se definen los routers de habitaciones para la API.
+- CrearHabitacion: Crea una nueva habitación.
+- ListarHabitaciones: Lista todas las habitaciones.
+- BuscarHabitacionesDisponibles: Busca las habitaciones disponibles para una fecha de entrada y salida.
+- ObtenerHabitacion: Obtiene una habitación por su ID.
+- ActualizarHabitacion: Actualiza una habitación existente.
+- EliminarHabitacion: Elimina una habitación existente.
+- SubirImagenHabitacion: Sube una imagen para una habitación y actualiza la URL en la base de datos.
+"""
 from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException, status, Form
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import date
 import json
 from app.core.database import ObtenerSesionBD
-from app.core.dependencies import ObtenerAdministradorActual, ObtenerUsuarioActual
+from app.core.dependencies import ObtenerAdministrador, ObtenerUsuario
 from app.core.storage import SubirImagenHabitacion
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate, HabitacionResponse
-from app.services.habitacion_service import HabitacionService
+from app.services.habitacion_service import ServicioHabitacion
 from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/habitaciones", tags=["Habitaciones"])
 
 
-@router.post("", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+@router.post("", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
 async def CrearHabitacion(
     numero: str = Form(...),
     tipo: str = Form(...),
@@ -27,9 +37,8 @@ async def CrearHabitacion(
     """
     Crea una nueva habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
     """
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     
-    # Crear objeto HabitacionCreate
     DatosHabitacion = HabitacionCreate(
         numero=numero,
         tipo=tipo,
@@ -46,12 +55,9 @@ async def CrearHabitacion(
     if archivo and archivo.filename:
         try:
             url_imagen = await SubirImagenHabitacion(archivo, HabitacionCreada.id)
-            # Actualizar la habitación con la URL de la imagen
             DatosActualizacion = HabitacionUpdate(imagen_url=url_imagen)
             HabitacionCreada = Servicio.ActualizarHabitacion(HabitacionCreada.id, DatosActualizacion)
         except Exception as e:
-            # Si falla la subida de imagen, la habitación ya está creada
-            # Podríamos eliminar la habitación o solo registrar el error
             pass
     
     return HabitacionCreada
@@ -63,7 +69,7 @@ def ListarHabitaciones(
     Limite: int = Query(100, ge=1, le=100),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     return Servicio.ListarHabitaciones(Saltar=Saltar, Limite=Limite)
 
 
@@ -75,7 +81,7 @@ def BuscarHabitacionesDisponibles(
     Tipo: Optional[str] = None,
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     return Servicio.BuscarDisponibles(
         FechaEntrada=FechaEntrada,
         FechaSalida=FechaSalida,
@@ -86,11 +92,11 @@ def BuscarHabitacionesDisponibles(
 
 @router.get("/{habitacion_id}", response_model=HabitacionResponse)
 def ObtenerHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     return Servicio.ObtenerHabitacion(habitacion_id)
 
 
-@router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministradorActual)])
+@router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
 async def ActualizarHabitacion(
     habitacion_id: int,
     tipo: str = Form(...),
@@ -104,12 +110,10 @@ async def ActualizarHabitacion(
     """
     Actualiza una habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
     """
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     
-    # Convertir disponible de string a boolean
     disponible_bool = disponible.lower() == 'true'
     
-    # Crear objeto HabitacionUpdate
     DatosHabitacion = HabitacionUpdate(
         tipo=tipo,
         descripcion=descripcion if descripcion else None,
@@ -125,24 +129,22 @@ async def ActualizarHabitacion(
     if archivo and archivo.filename:
         try:
             url_imagen = await SubirImagenHabitacion(archivo, habitacion_id)
-            # Actualizar la habitación con la URL de la imagen
             DatosImagen = HabitacionUpdate(imagen_url=url_imagen)
             HabitacionActualizada = Servicio.ActualizarHabitacion(habitacion_id, DatosImagen)
         except Exception as e:
-            # Si falla la subida de imagen, la actualización de otros campos ya está hecha
             pass
     
     return HabitacionActualizada
 
 
-@router.delete("/{habitacion_id}", dependencies=[Depends(ObtenerAdministradorActual)])
+@router.delete("/{habitacion_id}", dependencies=[Depends(ObtenerAdministrador)])
 def EliminarHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
-    Servicio = HabitacionService(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD)
     Servicio.EliminarHabitacion(habitacion_id)
     return {"message": "Habitación eliminada correctamente"}
 
 
-@router.post("/{habitacion_id}/imagen", dependencies=[Depends(ObtenerAdministradorActual)])
+@router.post("/{habitacion_id}/imagen", dependencies=[Depends(ObtenerAdministrador)])
 async def SubirImagenHabitacionEndpoint(
     habitacion_id: int,
     archivo: UploadFile = File(...),
@@ -151,15 +153,11 @@ async def SubirImagenHabitacionEndpoint(
     """
     Sube una imagen para una habitación y actualiza la URL en la base de datos
     """
-    Servicio = HabitacionService(SesionBD)
-    
-    # Verificar que la habitación existe
+    Servicio = ServicioHabitacion(SesionBD)
     HabitacionEncontrada = Servicio.ObtenerHabitacion(habitacion_id)
     
     # Subir imagen a Supabase
     url_imagen = await SubirImagenHabitacion(archivo, habitacion_id)
-    
-    # Actualizar habitación con la URL de la imagen
     DatosActualizacion = HabitacionUpdate(imagen_url=url_imagen)
     HabitacionActualizada = Servicio.ActualizarHabitacion(habitacion_id, DatosActualizacion)
     

@@ -1,4 +1,4 @@
-# Documentación Técnica de Endpoints
+# RoyalPalms API Endpoints
 
 ## Base URL
 ```

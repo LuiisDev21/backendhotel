@@ -27,4 +27,6 @@ wheels/
 .DS_Store
 .vscode/
 .idea/
+
 frontend/
+scripts/

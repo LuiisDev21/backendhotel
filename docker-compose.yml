@@ -1,9 +1,7 @@
 version: '3.8'
 
-# Configuración para desarrollo: usa DATABASE_URL del .env (base de datos externa)
 
 services:
-  # API FastAPI
   api:
     build:
       context: .
@@ -25,7 +23,7 @@ services:
       - ./app:/app/app
     command: >
       sh -c "
-        echo 'Iniciando API con base de datos externa...' &&
+        echo 'Iniciando...' &&
         sleep 2 &&
         python scripts/init_database.py &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

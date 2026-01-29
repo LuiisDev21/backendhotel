@@ -1,3 +1,7 @@
+""" 
+Modelo de Pago, se define el modelo de pago con SQLAlchemy.
+"""
+
 from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime

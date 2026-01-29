@@ -4,7 +4,7 @@ from decimal import Decimal
 from datetime import datetime
 
 
-class HabitacionBase(BaseModel):
+class Habitacion(BaseModel):
     numero: str
     tipo: str
     descripcion: Optional[str] = None
@@ -14,7 +14,7 @@ class HabitacionBase(BaseModel):
     imagen_url: Optional[str] = None
 
 
-class HabitacionCreate(HabitacionBase):
+class HabitacionCreate(Habitacion):
     pass
 
 
@@ -27,7 +27,7 @@ class HabitacionUpdate(BaseModel):
     imagen_url: Optional[str] = None
 
 
-class HabitacionResponse(HabitacionBase):
+class HabitacionResponse(Habitacion):
     id: int
     fecha_creacion: datetime
 

@@ -6,7 +6,7 @@ from app.routers import auth, habitaciones, reservas, pagos
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
-    description="Sistema Web de Reservas de Hotel - API REST"
+    description="RoyalPalms API"
 )
 
 app.add_middleware(
@@ -26,7 +26,7 @@ app.include_router(pagos.router, prefix=settings.API_V1_PREFIX)
 @app.get("/")
 def Raiz():
     return {
-        "message": "Sistema de Reservas de Hotel API",
+        "message": "RoyalPalms API",
         "version": "1.0.0",
         "docs": "/docs"
     }

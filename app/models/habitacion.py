@@ -1,3 +1,7 @@
+"""
+Modelo de Habitacion, se define el modelo de la habitacion con SQLAlchemy.
+"""
+
 from sqlalchemy import Column, Integer, String, Numeric, Boolean, Text, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime

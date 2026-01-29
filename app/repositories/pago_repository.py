@@ -1,3 +1,12 @@
+""" 
+Repositorio de Pago, se define el repositorio de pago con SQLAlchemy.
+- ObtenerPorId: Obtiene un pago por su ID.
+- ObtenerPorReserva: Obtiene un pago por su reserva ID.
+- ObtenerPorNumeroTransaccion: Obtiene un pago por su numero de transaccion.
+- ObtenerTodos: Obtiene todos los pagos.
+- Crear: Crea un nuevo pago.
+- Actualizar: Actualiza un pago existente.
+"""
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from app.models.pago import Pago

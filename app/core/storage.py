@@ -1,3 +1,12 @@
+"""
+Funciones para interactuar con Supabase Storage, se definen las funciones para subir y eliminar imágenes de Supabase Storage.
+- IniciarSupabase: Inicia una conexión a Supabase Storage.
+- SubirImagenHabitacion: Sube una imagen a Supabase Storage y retorna la URL pública.
+- EliminarImagenHabitacion: Elimina una imagen de Supabase Storage.
+- Valida el tipo de archivo.
+- Valida el tamaño del archivo.
+"""
+
 from supabase import create_client, Client
 from fastapi import UploadFile, HTTPException, status
 from app.core.config import settings
@@ -5,13 +14,10 @@ import uuid
 from typing import Optional
 
 
-def ObtenerClienteSupabase() -> Optional[Client]:
-    """Obtiene el cliente de Supabase si está configurado"""
+def IniciarSupabase () -> Optional[Client]:
     if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
         return None
     try:
-        # Inicializar cliente de Supabase usando parámetros posicionales
-        # create_client(url, key) es la forma estándar
         cliente = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
         return cliente
     except Exception as e:
@@ -38,7 +44,7 @@ async def SubirImagenHabitacion(archivo: UploadFile, habitacion_id: int) -> str:
             detail="Supabase no está configurado"
         )
     
-    # Validar tipo de archivo
+    # Validacion de tipos de archivos permitidos
     tipos_permitidos = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
     if archivo.content_type not in tipos_permitidos:
         raise HTTPException(
@@ -46,7 +52,7 @@ async def SubirImagenHabitacion(archivo: UploadFile, habitacion_id: int) -> str:
             detail=f"Tipo de archivo no permitido. Tipos permitidos: {', '.join(tipos_permitidos)}"
         )
     
-    # Validar tamaño (máximo 5MB)
+    # Validacion de tamaño del archivo
     contenido = await archivo.read()
     if len(contenido) > 5 * 1024 * 1024:
         raise HTTPException(
@@ -55,17 +61,18 @@ async def SubirImagenHabitacion(archivo: UploadFile, habitacion_id: int) -> str:
         )
     
     try:
-        supabase = ObtenerClienteSupabase()
+        supabase = IniciarSupabase ()
         if not supabase:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="No se pudo inicializar el cliente de Supabase"
             )
         
-        # Generar nombre único para el archivo
+        # Generacion de nombre unico para el archivo
         extension = archivo.filename.split('.')[-1] if '.' in archivo.filename else 'jpg'
         nombre_archivo = f"{habitacion_id}_{uuid.uuid4().hex}.{extension}"
         ruta_archivo = f"habitaciones/{nombre_archivo}"
+        
         
         # Subir archivo a Supabase Storage
         # La API de Supabase Storage espera que los valores en file_options sean strings
@@ -74,11 +81,10 @@ async def SubirImagenHabitacion(archivo: UploadFile, habitacion_id: int) -> str:
             file=contenido,
             file_options={
                 "content-type": archivo.content_type,
-                "upsert": "true"  # Debe ser string, no booleano
+                "upsert": "true" 
             }
         )
         
-        # Obtener URL pública
         url_publica = supabase.storage.from_(settings.SUPABASE_BUCKET).get_public_url(ruta_archivo)
         
         return url_publica
@@ -106,10 +112,7 @@ async def EliminarImagenHabitacion(imagen_url: str) -> bool:
         return False
     
     try:
-        supabase = ObtenerClienteSupabase()
-        
-        # Extraer el nombre del archivo de la URL
-        # La URL de Supabase tiene el formato: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+        supabase = IniciarSupabase ()
         partes = imagen_url.split('/')
         if 'public' in partes:
             indice_public = partes.index('public')

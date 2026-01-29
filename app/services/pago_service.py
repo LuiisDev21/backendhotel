@@ -1,3 +1,13 @@
+"""  
+Servicio de Pagos, se define el servicio de pagos con SQLAlchemy.
+- CrearPago: Crea un nuevo pago.
+- ObtenerPago: Obtiene un pago por su ID.
+- ObtenerPagoPorReserva: Obtiene un pago por su reserva ID.
+- ListarPagos: Lista todos los pagos.
+- ProcesarPago: Procesa un pago.
+- ActualizarPago: Actualiza un pago existente.
+- ReembolsarPago: Reembolsa un pago existente.
+"""
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import datetime
@@ -10,7 +20,7 @@ from app.schemas.pago import PagoCreate, PagoUpdate
 import uuid
 
 
-class PagoService:
+class ServicioPagos:
     def __init__(self, SesionBD: Session):
         self.Repositorio = PagoRepository(SesionBD)
         self.RepositorioReserva = ReservaRepository(SesionBD)
@@ -54,7 +64,7 @@ class PagoService:
         if not PagoEncontrado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No se encontró pago para esta reserva"
+                detail="No se encontro pago para esta reserva"
             )
         return PagoEncontrado
 
@@ -85,7 +95,7 @@ class PagoService:
         self,
         IdPago: int,
         DatosPago: PagoUpdate
-    ) -> Pago:
+        ) -> Pago:
         PagoEncontrado = self.ObtenerPago(IdPago)
         DatosActualizacion = DatosPago.model_dump(exclude_unset=True)
         

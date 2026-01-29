@@ -1,3 +1,14 @@
+"""
+Repositorio de Habitacion, se define el repositorio de la habitacion con SQLAlchemy.
+- ObtenerPorId: Obtiene una habitacion por su ID.
+- ObtenerPorNumero: Obtiene una habitacion por su numero.
+- ObtenerTodas: Obtiene todas las habitaciones.
+- Crear: Crea una nueva habitacion.
+- Actualizar: Actualiza una habitacion existente.
+- Eliminar: Elimina una habitacion existente.
+- BuscarDisponibles: Busca las habitaciones disponibles para una fecha de entrada y salida.
+"""
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import Optional, List
