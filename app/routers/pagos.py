@@ -82,22 +82,31 @@ def ObtenerPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
 
 
 @router.post("/{pago_id}/procesar", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministrador)])
-def ProcesarPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
+def ProcesarPago(
+    pago_id: int, 
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
     Servicio = ServicioPagos(SesionBD)
-    return Servicio.ProcesarPago(pago_id)
+    return Servicio.ProcesarPago(pago_id, UsuarioId=UsuarioActual.id)
 
 
 @router.put("/{pago_id}", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministrador)])
 def ActualizarPago(
     pago_id: int,
     DatosPago: PagoUpdate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     Servicio = ServicioPagos(SesionBD)
-    return Servicio.ActualizarPago(pago_id, DatosPago)
+    return Servicio.ActualizarPago(pago_id, DatosPago, UsuarioId=UsuarioActual.id)
 
 
 @router.post("/{pago_id}/reembolsar", response_model=PagoResponse, dependencies=[Depends(ObtenerAdministrador)])
-def ReembolsarPago(pago_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
+def ReembolsarPago(
+    pago_id: int, 
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
     Servicio = ServicioPagos(SesionBD)
-    return Servicio.ReembolsarPago(pago_id)
+    return Servicio.ReembolsarPago(pago_id, UsuarioId=UsuarioActual.id)

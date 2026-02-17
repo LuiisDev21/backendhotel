@@ -12,19 +12,22 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 from app.models.reserva import Reserva, EstadoReserva
 from app.models.habitacion import Habitacion
 from app.repositories.reserva_repository import ReservaRepository
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.schemas.reserva import ReservaCreate, ReservaUpdate
+from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
+from app.models.auditoria import AccionAuditoria
 
 
 class ServicioReserva:
-    def __init__(self, SesionBD: Session):
+    def __init__(self, SesionBD: Session, UsuarioId: Optional[int] = None):
         self.Repositorio = ReservaRepository(SesionBD)
         self.RepositorioHabitacion = HabitacionRepository(SesionBD)
         self.SesionBD = SesionBD
+        self.UsuarioId = UsuarioId
 
     def CalcularPrecioTotal(
         self,
@@ -81,18 +84,21 @@ class ServicioReserva:
             DatosReserva.fecha_salida
         )
         
+        # El procedimiento almacenado valida todo y calcula el precio automáticamente
         ReservaNueva = Reserva(
             usuario_id=IdUsuario,
             habitacion_id=DatosReserva.habitacion_id,
             fecha_entrada=DatosReserva.fecha_entrada,
             fecha_salida=DatosReserva.fecha_salida,
             numero_huespedes=DatosReserva.numero_huespedes,
-            precio_total=PrecioTotal,
+            precio_total=PrecioTotal,  # Se recalcula en el procedimiento almacenado
             notas=DatosReserva.notas,
             estado=EstadoReserva.PENDIENTE
         )
         
-        return self.Repositorio.Crear(ReservaNueva)
+        # Usar procedimiento almacenado que valida y crea la reserva
+        # La auditoría se registra automáticamente en el procedimiento almacenado
+        return self.Repositorio.Crear(ReservaNueva, UsuarioAuditoriaId=self.UsuarioId)
 
     def ObtenerReserva(self, IdReserva: int) -> Reserva:
         ReservaEncontrada = self.Repositorio.ObtenerPorId(IdReserva)
@@ -137,10 +143,25 @@ class ServicioReserva:
             
             ReservaEncontrada.precio_total = self.CalcularPrecioTotal(HabitacionEncontrada, FechaEntrada, FechaSalida)
         
+        DatosAnteriores = convertir_modelo_a_dict(ReservaEncontrada)
+        
         for Campo, Valor in DatosActualizacion.items():
             setattr(ReservaEncontrada, Campo, Valor)
         
-        return self.Repositorio.Actualizar(ReservaEncontrada)
+        ReservaActualizada = self.Repositorio.Actualizar(ReservaEncontrada)
+        
+        # Registrar auditoría
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="reservas",
+            Accion=AccionAuditoria.UPDATE,
+            RegistroId=IdReserva,
+            UsuarioId=self.UsuarioId,
+            DatosAnteriores=DatosAnteriores,
+            DatosNuevos=convertir_modelo_a_dict(ReservaActualizada)
+        )
+        
+        return ReservaActualizada
 
     def CancelarReserva(self, IdReserva: int) -> Reserva:
         ReservaEncontrada = self.ObtenerReserva(IdReserva)
@@ -149,5 +170,21 @@ class ServicioReserva:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La reserva ya esta cancelada"
             )
+        
+        DatosAnteriores = convertir_modelo_a_dict(ReservaEncontrada)
         ReservaEncontrada.estado = EstadoReserva.CANCELADA
-        return self.Repositorio.Actualizar(ReservaEncontrada)
+        ReservaCancelada = self.Repositorio.Actualizar(ReservaEncontrada)
+        
+        # Registrar auditoría
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="reservas",
+            Accion=AccionAuditoria.RESERVA_CANCEL,
+            RegistroId=IdReserva,
+            UsuarioId=self.UsuarioId,
+            DatosAnteriores=DatosAnteriores,
+            DatosNuevos=convertir_modelo_a_dict(ReservaCancelada),
+            Observaciones="Reserva cancelada"
+        )
+        
+        return ReservaCancelada

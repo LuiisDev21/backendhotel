@@ -17,7 +17,9 @@ class Usuario(Base):
     telefono = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     es_administrador = Column(Boolean, default=False)
-    activo = Column(Boolean, default=True)
+    activo = Column(Boolean, default=True, index=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     reservas = relationship("Reserva", back_populates="usuario")
+    auditorias = relationship("Auditoria", back_populates="usuario")

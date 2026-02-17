@@ -32,8 +32,9 @@ class Pago(Base):
     monto = Column(Numeric(10, 2), nullable=False)
     metodo_pago = Column(EnumType(MetodoPago), nullable=False)
     estado = Column(EnumType(EstadoPago), default=EstadoPago.PENDIENTE)
-    numero_transaccion = Column(String, unique=True, nullable=True)
+    numero_transaccion = Column(String(100), unique=True, nullable=True, index=True)
     fecha_pago = Column(DateTime, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     reserva = relationship("Reserva", back_populates="pago")

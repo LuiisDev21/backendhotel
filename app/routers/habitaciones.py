@@ -26,22 +26,23 @@ router = APIRouter(prefix="/habitaciones", tags=["Habitaciones"])
 @router.post("", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
 async def CrearHabitacion(
     numero: str = Form(...),
-    tipo: str = Form(...),
+    tipo_habitacion_id: int = Form(...),
     descripcion: Optional[str] = Form(None),
     capacidad: int = Form(...),
     precio_por_noche: float = Form(...),
     disponible: bool = Form(True),
     archivo: Optional[UploadFile] = File(None),
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     """
     Crea una nueva habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
     """
-    Servicio = ServicioHabitacion(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD, UsuarioId=UsuarioActual.id)
     
     DatosHabitacion = HabitacionCreate(
         numero=numero,
-        tipo=tipo,
+        tipo_habitacion_id=tipo_habitacion_id,
         descripcion=descripcion,
         capacidad=capacidad,
         precio_por_noche=precio_por_noche,
@@ -78,7 +79,7 @@ def BuscarHabitacionesDisponibles(
     FechaEntrada: date = Query(...),
     FechaSalida: date = Query(...),
     Capacidad: Optional[int] = Query(None, ge=1),
-    Tipo: Optional[str] = None,
+    TipoHabitacionId: Optional[int] = Query(None),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     Servicio = ServicioHabitacion(SesionBD)
@@ -86,7 +87,7 @@ def BuscarHabitacionesDisponibles(
         FechaEntrada=FechaEntrada,
         FechaSalida=FechaSalida,
         Capacidad=Capacidad,
-        Tipo=Tipo
+        TipoHabitacionId=TipoHabitacionId
     )
 
 
@@ -99,23 +100,24 @@ def ObtenerHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSes
 @router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
 async def ActualizarHabitacion(
     habitacion_id: int,
-    tipo: str = Form(...),
+    tipo_habitacion_id: int = Form(...),
     descripcion: Optional[str] = Form(None),
     capacidad: int = Form(...),
     precio_por_noche: float = Form(...),
     disponible: str = Form(...),  # Recibir como string
     archivo: Optional[UploadFile] = File(None),
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     """
     Actualiza una habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
     """
-    Servicio = ServicioHabitacion(SesionBD)
+    Servicio = ServicioHabitacion(SesionBD, UsuarioId=UsuarioActual.id)
     
     disponible_bool = disponible.lower() == 'true'
     
     DatosHabitacion = HabitacionUpdate(
-        tipo=tipo,
+        tipo_habitacion_id=tipo_habitacion_id,
         descripcion=descripcion if descripcion else None,
         capacidad=capacidad,
         precio_por_noche=precio_por_noche,

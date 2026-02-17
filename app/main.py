@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routers import auth, habitaciones, reservas, pagos
+from app.routers import auth, habitaciones, reservas, pagos, tipos_habitacion, reportes
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -19,8 +19,10 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(habitaciones.router, prefix=settings.API_V1_PREFIX)
+app.include_router(tipos_habitacion.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reservas.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pagos.router, prefix=settings.API_V1_PREFIX)
+app.include_router(reportes.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

@@ -26,7 +26,7 @@ def CrearReserva(
     UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    Servicio = ServicioReserva(SesionBD)
+    Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
     return Servicio.CrearReserva(UsuarioActual.id, DatosReserva)
 
 
@@ -95,7 +95,7 @@ def CancelarReserva(
     UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
-    Servicio = ServicioReserva(SesionBD)
+    Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
     ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
     
     if not UsuarioActual.es_administrador and ReservaEncontrada.usuario_id != UsuarioActual.id:

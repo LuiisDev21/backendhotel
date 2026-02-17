@@ -11,12 +11,14 @@ Servicio de Pagos, se define el servicio de pagos con SQLAlchemy.
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from app.models.pago import Pago, EstadoPago
 from app.models.reserva import Reserva, EstadoReserva
 from app.repositories.pago_repository import PagoRepository
 from app.repositories.reserva_repository import ReservaRepository
 from app.schemas.pago import PagoCreate, PagoUpdate
+from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
+from app.models.auditoria import AccionAuditoria
 import uuid
 
 
@@ -48,7 +50,20 @@ class ServicioPagos:
             numero_transaccion=str(uuid.uuid4())
         )
         
-        return self.Repositorio.Crear(PagoNuevo)
+        PagoCreado = self.Repositorio.Crear(PagoNuevo)
+        
+        # Registrar auditoría
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="pagos",
+            Accion=AccionAuditoria.CREATE,
+            RegistroId=PagoCreado.id,
+            UsuarioId=None,  # El usuario se obtiene del contexto de la reserva
+            DatosNuevos=convertir_modelo_a_dict(PagoCreado),
+            Observaciones="Pago creado"
+        )
+        
+        return PagoCreado
 
     def ObtenerPago(self, IdPago: int) -> Pago:
         PagoEncontrado = self.Repositorio.ObtenerPorId(IdPago)
@@ -71,7 +86,7 @@ class ServicioPagos:
     def ListarPagos(self, Saltar: int = 0, Limite: int = 100) -> List[Pago]:
         return self.Repositorio.ObtenerTodos(Saltar=Saltar, Limite=Limite)
 
-    def ProcesarPago(self, IdPago: int) -> Pago:
+    def ProcesarPago(self, IdPago: int, UsuarioId: Optional[int] = None) -> Pago:
         PagoEncontrado = self.ObtenerPago(IdPago)
         
         if PagoEncontrado.estado == EstadoPago.COMPLETADO:
@@ -80,31 +95,65 @@ class ServicioPagos:
                 detail="El pago ya fue procesado"
             )
         
+        # Actualizar el pago directamente (no usar procedimiento almacenado que crea uno nuevo)
         PagoEncontrado.estado = EstadoPago.COMPLETADO
         PagoEncontrado.fecha_pago = datetime.utcnow()
         
+        # Actualizar estado de reserva a confirmada
         ReservaEncontrada = self.RepositorioReserva.ObtenerPorId(PagoEncontrado.reserva_id)
-        ReservaEncontrada.estado = EstadoReserva.CONFIRMADA
+        if ReservaEncontrada:
+            ReservaEncontrada.estado = EstadoReserva.CONFIRMADA
         
+        # Guardar cambios
         self.SesionBD.commit()
         self.SesionBD.refresh(PagoEncontrado)
+        
+        # Registrar auditoría
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="pagos",
+            Accion=AccionAuditoria.PAGO_PROCESS,
+            RegistroId=IdPago,
+            UsuarioId=UsuarioId,
+            DatosNuevos=convertir_modelo_a_dict(PagoEncontrado),
+            Observaciones="Pago procesado exitosamente"
+        )
         
         return PagoEncontrado
 
     def ActualizarPago(
         self,
         IdPago: int,
-        DatosPago: PagoUpdate
+        DatosPago: PagoUpdate,
+        UsuarioId: Optional[int] = None
         ) -> Pago:
         PagoEncontrado = self.ObtenerPago(IdPago)
+        DatosAnteriores = convertir_modelo_a_dict(PagoEncontrado)
+        
         DatosActualizacion = DatosPago.model_dump(exclude_unset=True)
         
         for Campo, Valor in DatosActualizacion.items():
             setattr(PagoEncontrado, Campo, Valor)
         
-        return self.Repositorio.Actualizar(PagoEncontrado)
+        PagoActualizado = self.Repositorio.Actualizar(PagoEncontrado)
+        
+        # Registrar auditoría
+        from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
+        from app.models.auditoria import AccionAuditoria
+        
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="pagos",
+            Accion=AccionAuditoria.UPDATE,
+            RegistroId=IdPago,
+            UsuarioId=UsuarioId,
+            DatosAnteriores=DatosAnteriores,
+            DatosNuevos=convertir_modelo_a_dict(PagoActualizado)
+        )
+        
+        return PagoActualizado
 
-    def ReembolsarPago(self, IdPago: int) -> Pago:
+    def ReembolsarPago(self, IdPago: int, UsuarioId: Optional[int] = None) -> Pago:
         PagoEncontrado = self.ObtenerPago(IdPago)
         
         if PagoEncontrado.estado != EstadoPago.COMPLETADO:
@@ -113,12 +162,26 @@ class ServicioPagos:
                 detail="Solo se pueden reembolsar pagos completados"
             )
         
+        DatosAnteriores = convertir_modelo_a_dict(PagoEncontrado)
         PagoEncontrado.estado = EstadoPago.REEMBOLSADO
         
         ReservaEncontrada = self.RepositorioReserva.ObtenerPorId(PagoEncontrado.reserva_id)
-        ReservaEncontrada.estado = EstadoReserva.CANCELADA
+        if ReservaEncontrada:
+            ReservaEncontrada.estado = EstadoReserva.CANCELADA
         
         self.SesionBD.commit()
         self.SesionBD.refresh(PagoEncontrado)
+        
+        # Registrar auditoría
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="pagos",
+            Accion=AccionAuditoria.PAGO_REFUND,
+            RegistroId=IdPago,
+            UsuarioId=UsuarioId,
+            DatosAnteriores=DatosAnteriores,
+            DatosNuevos=convertir_modelo_a_dict(PagoEncontrado),
+            Observaciones="Pago reembolsado"
+        )
         
         return PagoEncontrado
