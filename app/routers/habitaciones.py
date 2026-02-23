@@ -14,7 +14,7 @@ from typing import Optional, List
 from datetime import date
 import json
 from app.core.database import ObtenerSesionBD
-from app.core.dependencies import ObtenerAdministrador, ObtenerUsuario
+from app.core.dependencies import ObtenerUsuario, TienePermiso
 from app.core.storage import SubirImagenHabitacion
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate, HabitacionResponse
 from app.services.habitacion_service import ServicioHabitacion
@@ -23,30 +23,35 @@ from app.models.usuario import Usuario
 router = APIRouter(prefix="/habitaciones", tags=["Habitaciones"])
 
 
-@router.post("", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
+@router.post("", response_model=HabitacionResponse, dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 async def CrearHabitacion(
     numero: str = Form(...),
     tipo_habitacion_id: int = Form(...),
+    politica_cancelacion_id: Optional[str] = Form(None),
     descripcion: Optional[str] = Form(None),
     capacidad: int = Form(...),
     precio_por_noche: float = Form(...),
-    disponible: bool = Form(True),
+    estado: str = Form("disponible"),
+    piso: Optional[int] = Form(None),
     archivo: Optional[UploadFile] = File(None),
     UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     """
-    Crea una nueva habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
+    Crea una nueva habitación. La política de cancelación es opcional y la define el admin.
+    Si se proporciona una imagen, se sube automáticamente a Supabase.
     """
     Servicio = ServicioHabitacion(SesionBD, UsuarioId=UsuarioActual.id)
-    
+    _politica_id = int(politica_cancelacion_id) if politica_cancelacion_id and str(politica_cancelacion_id).strip() else None
     DatosHabitacion = HabitacionCreate(
         numero=numero,
         tipo_habitacion_id=tipo_habitacion_id,
+        politica_cancelacion_id=_politica_id,
         descripcion=descripcion,
         capacidad=capacidad,
         precio_por_noche=precio_por_noche,
-        disponible=disponible
+        estado=estado,
+        piso=piso
     )
     
     # Crear la habitación primero
@@ -97,31 +102,31 @@ def ObtenerHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSes
     return Servicio.ObtenerHabitacion(habitacion_id)
 
 
-@router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(ObtenerAdministrador)])
+@router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 async def ActualizarHabitacion(
     habitacion_id: int,
     tipo_habitacion_id: int = Form(...),
+    politica_cancelacion_id: Optional[str] = Form(None),
     descripcion: Optional[str] = Form(None),
     capacidad: int = Form(...),
     precio_por_noche: float = Form(...),
-    disponible: str = Form(...),  # Recibir como string
+    estado: str = Form("disponible"),
     archivo: Optional[UploadFile] = File(None),
     UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     """
-    Actualiza una habitación. Si se proporciona una imagen, se sube automáticamente a Supabase.
+    Actualiza una habitación. Política de cancelación opcional. Si se proporciona una imagen, se sube a Supabase.
     """
     Servicio = ServicioHabitacion(SesionBD, UsuarioId=UsuarioActual.id)
-    
-    disponible_bool = disponible.lower() == 'true'
-    
+    _politica_id = int(politica_cancelacion_id) if politica_cancelacion_id and str(politica_cancelacion_id).strip() else None
     DatosHabitacion = HabitacionUpdate(
         tipo_habitacion_id=tipo_habitacion_id,
+        politica_cancelacion_id=_politica_id,
         descripcion=descripcion if descripcion else None,
         capacidad=capacidad,
         precio_por_noche=precio_por_noche,
-        disponible=disponible_bool
+        estado=estado
     )
     
     # Actualizar la habitación
@@ -139,14 +144,14 @@ async def ActualizarHabitacion(
     return HabitacionActualizada
 
 
-@router.delete("/{habitacion_id}", dependencies=[Depends(ObtenerAdministrador)])
+@router.delete("/{habitacion_id}", dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 def EliminarHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSesionBD)):
     Servicio = ServicioHabitacion(SesionBD)
     Servicio.EliminarHabitacion(habitacion_id)
     return {"message": "Habitación eliminada correctamente"}
 
 
-@router.post("/{habitacion_id}/imagen", dependencies=[Depends(ObtenerAdministrador)])
+@router.post("/{habitacion_id}/imagen", dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 async def SubirImagenHabitacionEndpoint(
     habitacion_id: int,
     archivo: UploadFile = File(...),

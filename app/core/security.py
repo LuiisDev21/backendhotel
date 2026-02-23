@@ -1,12 +1,9 @@
 """
-Funciones de seguridad para la API, se definen las funciones para la autenticación y autorización de los endpoints.
-- VerificarContrasena: Verifica una contraseña plana contra un hash bcrypt.
-- HashearContra: Hashea una contraseña plana y la devuelve como hash bcrypt.
-- CrearTokenAcceso: Crea un token de acceso JWT.
-- DecodificarTokenAcceso: Decodifica un token de acceso JWT.
+Funciones de seguridad para la API.
 """
-
-from datetime import datetime, timedelta
+import secrets
+import hashlib
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -36,13 +33,24 @@ def HashearContra(Contrasena: str) -> str:
 
 def CrearTokenAcceso(Datos: dict, TiempoExpiracion: Optional[timedelta] = None) -> str:
     DatosACodificar = Datos.copy()
+    now = datetime.now(timezone.utc)
     if TiempoExpiracion:
-        FechaExpiracion = datetime.utcnow() + TiempoExpiracion
+        FechaExpiracion = now + TiempoExpiracion
     else:
-        FechaExpiracion = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        FechaExpiracion = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     DatosACodificar.update({"exp": FechaExpiracion})
     TokenCodificado = jwt.encode(DatosACodificar, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return TokenCodificado
+
+
+def GenerarRefreshToken() -> str:
+    """Genera un token de refresco aleatorio (url-safe)."""
+    return secrets.token_urlsafe(64)
+
+
+def HashearRefreshToken(Token: str) -> str:
+    """Hash SHA-256 del refresh token para almacenar en BD."""
+    return hashlib.sha256(Token.encode()).hexdigest()
 
 
 def DecodificarTokenAcceso(Token: str) -> Optional[dict]:

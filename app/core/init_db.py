@@ -3,7 +3,7 @@ Script para inicializar la base de datos
 Ejecutar: python -m app.core.init_db
 """
 from app.core.database import engine, Base
-from app.models import Usuario, Habitacion, Reserva, Pago
+from app.models import Usuario, Habitacion, Reserva, TransaccionPago
 
 
 def init_db():

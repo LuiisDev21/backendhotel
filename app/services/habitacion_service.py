@@ -13,7 +13,7 @@ from datetime import date
 from typing import Optional, List
 from app.models.habitacion import Habitacion
 from app.models.reserva import Reserva, EstadoReserva
-from app.models.pago import Pago
+from app.models.transaccion_pago import TransaccionPago
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.repositories.tipo_habitacion_repository import TipoHabitacionRepository
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
@@ -136,11 +136,11 @@ class ServicioHabitacion:
         IdsReservas = [r.id for r in ReservasAEliminar]
         
         if IdsReservas:
-            # Eliminar los pagos asociados a esas reservas
-            self.SesionBD.query(Pago).filter(
-                Pago.reserva_id.in_(IdsReservas)
+            # Eliminar las transacciones de pago asociadas a esas reservas
+            self.SesionBD.query(TransaccionPago).filter(
+                TransaccionPago.reserva_id.in_(IdsReservas)
             ).delete(synchronize_session=False)
-            
+
             # Eliminar las reservas completadas o canceladas
             self.SesionBD.query(Reserva).filter(
                 Reserva.id.in_(IdsReservas)

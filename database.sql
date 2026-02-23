@@ -1,10 +1,9 @@
 -- =====================================================
 -- Royal Palm Hotel - Base de Datos
--- Esquema actual: 3NF, auditoría, procedimientos almacenados
 -- =====================================================
 
 -- =====================================================
--- Tabla: tipos_habitacion (Normalización 3NF)
+-- Tabla: tipos_habitacion
 -- =====================================================
 CREATE TABLE IF NOT EXISTS tipos_habitacion (
     id SERIAL PRIMARY KEY,
@@ -41,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_usuarios_activo ON usuarios(activo);
 
 -- =====================================================
--- Tabla: habitaciones (Normalizada con referencia a tipos_habitacion)
+-- Tabla: habitaciones
 -- =====================================================
 CREATE TABLE IF NOT EXISTS habitaciones (
     id SERIAL PRIMARY KEY,
@@ -571,7 +570,7 @@ GROUP BY h.id, h.numero, h.tipo_habitacion_id, th.codigo, th.nombre, th.descripc
          h.descripcion, h.capacidad, h.precio_por_noche, h.disponible, h.imagen_url;
 
 -- =====================================================
--- Datos iniciales: Tipos de habitación
+-- Insertar datos iniciales: Tipos de habitación
 -- =====================================================
 INSERT INTO tipos_habitacion (codigo, nombre, descripcion, capacidad_maxima, precio_base) VALUES
     ('IND', 'Individual', 'Habitación individual con cama de tamaño completo', 1, 50.00),

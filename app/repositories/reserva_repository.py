@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from datetime import date
 from app.models.reserva import Reserva
+from app.models.historial_estado_reserva import HistorialEstadoReserva
 from app.repositories.stored_procedures import StoredProcedures
 
 
@@ -46,12 +47,14 @@ class ReservaRepository:
         ).offset(Saltar).limit(Limite).all()
 
     def Crear(
-        self, 
+        self,
         ReservaNueva: Reserva,
-        UsuarioAuditoriaId: Optional[int] = None
+        UsuarioAuditoriaId: Optional[int] = None,
+        CanalReserva: str = "web"
     ) -> Reserva:
-        """Crea una reserva usando el procedimiento almacenado."""
+        """Crea una reserva usando el procedimiento almacenado (sp_crear_reserva)."""
         try:
+            canal = getattr(ReservaNueva, "canal_reserva", None) or CanalReserva
             resultado = self.StoredProcedures.CrearReserva(
                 UsuarioId=ReservaNueva.usuario_id,
                 HabitacionId=ReservaNueva.habitacion_id,
@@ -59,14 +62,23 @@ class ReservaRepository:
                 FechaSalida=ReservaNueva.fecha_salida,
                 NumeroHuespedes=ReservaNueva.numero_huespedes,
                 Notas=ReservaNueva.notas,
-                UsuarioAuditoriaId=UsuarioAuditoriaId
+                UsuarioAuditoriaId=UsuarioAuditoriaId,
+                CanalReserva=canal,
+                PoliticaCancelacionId=getattr(ReservaNueva, "politica_cancelacion_id", None)
             )
-            
-            # Obtener la reserva creada
-            return self.ObtenerPorId(resultado['id'])
+            id_reserva = int(resultado["id"])
+            return self.ObtenerPorId(id_reserva)
         except Exception as e:
             self.SesionBD.rollback()
             raise
+
+    def ObtenerHistorialEstados(self, IdReserva: int) -> List[HistorialEstadoReserva]:
+        return (
+            self.SesionBD.query(HistorialEstadoReserva)
+            .filter(HistorialEstadoReserva.reserva_id == IdReserva)
+            .order_by(HistorialEstadoReserva.fecha_cambio.desc())
+            .all()
+        )
 
     def Actualizar(self, ReservaActualizada: Reserva) -> Reserva:
         self.SesionBD.commit()

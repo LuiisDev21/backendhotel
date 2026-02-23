@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import date
 from decimal import Decimal
 
-from app.models.pago import Pago, EstadoPago
+from app.models.transaccion_pago import TransaccionPago, EstadoPago, TipoTransaccion
 from app.models.reserva import Reserva, EstadoReserva
 from app.models.habitacion import Habitacion
 from app.models.tipo_habitacion import TipoHabitacion
@@ -23,29 +23,35 @@ class ReporteRepository:
         FechaInicio: Optional[date] = None,
         FechaFin: Optional[date] = None
     ) -> Dict[str, Any]:
-        """Ingresos totales y por método de pago (pagos completados)."""
+        """Ingresos totales y por método de pago (transacciones tipo cargo completadas)."""
         q = self.SesionBD.query(
-            func.coalesce(func.sum(Pago.monto), 0).label("total"),
-            func.count(Pago.id).label("cantidad")
-        ).filter(Pago.estado == EstadoPago.COMPLETADO)
+            func.coalesce(func.sum(TransaccionPago.monto), 0).label("total"),
+            func.count(TransaccionPago.id).label("cantidad")
+        ).filter(
+            TransaccionPago.estado == EstadoPago.COMPLETADO,
+            TransaccionPago.tipo == TipoTransaccion.CARGO
+        )
         if FechaInicio is not None:
-            q = q.filter(Pago.fecha_pago >= FechaInicio)
+            q = q.filter(TransaccionPago.fecha_pago >= FechaInicio)
         if FechaFin is not None:
-            q = q.filter(Pago.fecha_pago <= FechaFin)
+            q = q.filter(TransaccionPago.fecha_pago <= FechaFin)
         row = q.first()
         total = float(row.total) if row and row.total is not None else 0.0
         cantidad = row.cantidad or 0
 
         q2 = self.SesionBD.query(
-            Pago.metodo_pago,
-            func.count(Pago.id).label("cantidad"),
-            func.sum(Pago.monto).label("monto")
-        ).filter(Pago.estado == EstadoPago.COMPLETADO)
+            TransaccionPago.metodo_pago,
+            func.count(TransaccionPago.id).label("cantidad"),
+            func.sum(TransaccionPago.monto).label("monto")
+        ).filter(
+            TransaccionPago.estado == EstadoPago.COMPLETADO,
+            TransaccionPago.tipo == TipoTransaccion.CARGO
+        )
         if FechaInicio is not None:
-            q2 = q2.filter(Pago.fecha_pago >= FechaInicio)
+            q2 = q2.filter(TransaccionPago.fecha_pago >= FechaInicio)
         if FechaFin is not None:
-            q2 = q2.filter(Pago.fecha_pago <= FechaFin)
-        q2 = q2.group_by(Pago.metodo_pago)
+            q2 = q2.filter(TransaccionPago.fecha_pago <= FechaFin)
+        q2 = q2.group_by(TransaccionPago.metodo_pago)
         por_metodo = [
             {
                 "metodo_pago": str(r.metodo_pago.value) if hasattr(r.metodo_pago, "value") else str(r.metodo_pago),

@@ -1,9 +1,9 @@
-""" 
-Modelo de Reserva, se define el modelo de la reserva con SQLAlchemy.
 """
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime, Numeric
+Modelo de Reserva con SQLAlchemy.
+"""
+from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Date, Numeric, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.sql import func
 import enum
 from app.core.database import Base
 from app.core.enum_type import EnumType
@@ -14,23 +14,42 @@ class EstadoReserva(str, enum.Enum):
     CONFIRMADA = "confirmada"
     CANCELADA = "cancelada"
     COMPLETADA = "completada"
+    NO_SHOW = "no_show"
 
 
 class Reserva(Base):
     __tablename__ = "reservas"
 
-    id = Column(Integer, primary_key=True, index=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    habitacion_id = Column(Integer, ForeignKey("habitaciones.id"), nullable=False)
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False)
+    habitacion_id = Column(Integer, ForeignKey("habitaciones.id", ondelete="RESTRICT"), nullable=False)
+    politica_cancelacion_id = Column(
+        Integer,
+        ForeignKey("politicas_cancelacion.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    codigo_reserva = Column(String(20), unique=True, nullable=False, index=True)
     fecha_entrada = Column(Date, nullable=False)
     fecha_salida = Column(Date, nullable=False)
     numero_huespedes = Column(Integer, nullable=False)
-    precio_total = Column(Numeric(10, 2), nullable=False)
+    precio_total = Column(Numeric(12, 2), nullable=False)
+    precio_por_noche_snapshot = Column(Numeric(12, 2), nullable=False)
     estado = Column(EnumType(EstadoReserva), default=EstadoReserva.PENDIENTE)
-    notas = Column(String, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
-    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    canal_reserva = Column(String(50), default="web")
+    notas = Column(String(1000), nullable=True)
+    fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())
+    fecha_actualizacion = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     usuario = relationship("Usuario", back_populates="reservas")
     habitacion = relationship("Habitacion", back_populates="reservas")
-    pago = relationship("Pago", back_populates="reserva", uselist=False)
+    politica_cancelacion = relationship("PoliticaCancelacion", back_populates="reservas")
+    transacciones_pago = relationship(
+        "TransaccionPago",
+        back_populates="reserva",
+        order_by="TransaccionPago.fecha_creacion"
+    )
+    historial_estados = relationship(
+        "HistorialEstadoReserva",
+        back_populates="reserva",
+        cascade="all, delete-orphan"
+    )

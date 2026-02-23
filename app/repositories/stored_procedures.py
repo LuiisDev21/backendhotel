@@ -1,21 +1,14 @@
 """
 Módulo para ejecutar procedimientos almacenados de PostgreSQL.
-Este módulo proporciona funciones para llamar a los procedimientos almacenados
-de manera eficiente y tipada.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, List, Dict, Any
 from datetime import date
 from decimal import Decimal
-from app.models.habitacion import Habitacion
-from app.models.reserva import Reserva
-from app.models.pago import Pago
 
 
 class StoredProcedures:
-    """Clase para ejecutar procedimientos almacenados."""
-    
     def __init__(self, SesionBD: Session):
         self.SesionBD = SesionBD
 
@@ -26,11 +19,13 @@ class StoredProcedures:
         Descripcion: Optional[str],
         Capacidad: int,
         PrecioPorNoche: Decimal,
-        Disponible: bool = True,
+        Estado: str = "disponible",
         ImagenUrl: Optional[str] = None,
+        Piso: Optional[int] = None,
+        Caracteristicas: Optional[dict] = None,
         UsuarioId: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Ejecuta el procedimiento almacenado sp_crear_habitacion."""
+        """Ejecuta sp_crear_habitacion (database_final: estado, piso, caracteristicas)."""
         query = text("""
             SELECT * FROM sp_crear_habitacion(
                 :numero,
@@ -38,28 +33,29 @@ class StoredProcedures:
                 :descripcion,
                 :capacidad,
                 :precio_por_noche,
-                :disponible,
+                :estado,
                 :imagen_url,
+                :piso,
+                :caracteristicas,
                 :usuario_id
             )
         """)
-        
-        result = self.SesionBD.execute(
-            query,
-            {
-                "numero": Numero,
-                "tipo_habitacion_id": TipoHabitacionId,
-                "descripcion": Descripcion,
-                "capacidad": Capacidad,
-                "precio_por_noche": float(PrecioPorNoche),
-                "disponible": Disponible,
-                "imagen_url": ImagenUrl,
-                "usuario_id": UsuarioId
-            }
-        )
-        self.SesionBD.commit()
-        
+        import json
+        params = {
+            "numero": Numero,
+            "tipo_habitacion_id": TipoHabitacionId,
+            "descripcion": Descripcion,
+            "capacidad": Capacidad,
+            "precio_por_noche": float(PrecioPorNoche),
+            "estado": Estado,
+            "imagen_url": ImagenUrl,
+            "piso": Piso,
+            "caracteristicas": json.dumps(Caracteristicas) if Caracteristicas else None,
+            "usuario_id": UsuarioId
+        }
+        result = self.SesionBD.execute(query, params)
         row = result.fetchone()
+        self.SesionBD.commit()
         if row:
             return dict(row._mapping)
         raise Exception("No se pudo crear la habitación")
@@ -71,7 +67,6 @@ class StoredProcedures:
         Capacidad: Optional[int] = None,
         TipoHabitacionId: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """Ejecuta el procedimiento almacenado sp_buscar_habitaciones_disponibles."""
         query = text("""
             SELECT * FROM sp_buscar_habitaciones_disponibles(
                 :fecha_entrada,
@@ -80,7 +75,6 @@ class StoredProcedures:
                 :tipo_habitacion_id
             )
         """)
-        
         result = self.SesionBD.execute(
             query,
             {
@@ -90,7 +84,6 @@ class StoredProcedures:
                 "tipo_habitacion_id": TipoHabitacionId
             }
         )
-        
         rows = result.fetchall()
         return [dict(row._mapping) for row in rows]
 
@@ -102,9 +95,11 @@ class StoredProcedures:
         FechaSalida: date,
         NumeroHuespedes: int,
         Notas: Optional[str] = None,
-        UsuarioAuditoriaId: Optional[int] = None
+        UsuarioAuditoriaId: Optional[int] = None,
+        CanalReserva: str = "web",
+        PoliticaCancelacionId: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Ejecuta el procedimiento almacenado sp_crear_reserva."""
+        """Ejecuta sp_crear_reserva (id BIGINT, canal_reserva, politica_cancelacion_id)."""
         query = text("""
             SELECT * FROM sp_crear_reserva(
                 :usuario_id,
@@ -113,10 +108,11 @@ class StoredProcedures:
                 :fecha_salida,
                 :numero_huespedes,
                 :notas,
-                :usuario_auditoria_id
+                :usuario_auditoria_id,
+                :canal_reserva,
+                :politica_cancelacion_id
             )
         """)
-        
         result = self.SesionBD.execute(
             query,
             {
@@ -126,11 +122,12 @@ class StoredProcedures:
                 "fecha_salida": FechaSalida,
                 "numero_huespedes": NumeroHuespedes,
                 "notas": Notas,
-                "usuario_auditoria_id": UsuarioAuditoriaId
+                "usuario_auditoria_id": UsuarioAuditoriaId,
+                "canal_reserva": CanalReserva,
+                "politica_cancelacion_id": PoliticaCancelacionId
             }
         )
         self.SesionBD.commit()
-        
         row = result.fetchone()
         if row:
             return dict(row._mapping)
@@ -141,32 +138,39 @@ class StoredProcedures:
         ReservaId: int,
         Monto: Decimal,
         MetodoPago: str,
+        Tipo: str = "cargo",
         NumeroTransaccion: Optional[str] = None,
+        ReferenciaExterna: Optional[str] = None,
+        PasarelaPago: Optional[str] = None,
         UsuarioId: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Ejecuta el procedimiento almacenado sp_procesar_pago."""
+        """Ejecuta sp_procesar_pago (transacciones_pago, tipo, referencia_externa, pasarela)."""
         query = text("""
             SELECT * FROM sp_procesar_pago(
                 :reserva_id,
                 :monto,
                 :metodo_pago,
+                :tipo,
                 :numero_transaccion,
+                :referencia_externa,
+                :pasarela_pago,
                 :usuario_id
             )
         """)
-        
         result = self.SesionBD.execute(
             query,
             {
                 "reserva_id": ReservaId,
                 "monto": float(Monto),
                 "metodo_pago": MetodoPago,
+                "tipo": Tipo,
                 "numero_transaccion": NumeroTransaccion,
+                "referencia_externa": ReferenciaExterna,
+                "pasarela_pago": PasarelaPago,
                 "usuario_id": UsuarioId
             }
         )
         self.SesionBD.commit()
-        
         row = result.fetchone()
         if row:
             return dict(row._mapping)
@@ -177,22 +181,16 @@ class StoredProcedures:
         FechaInicio: Optional[date] = None,
         FechaFin: Optional[date] = None
     ) -> Dict[str, Any]:
-        """Ejecuta el procedimiento almacenado sp_obtener_estadisticas_reservas."""
         query = text("""
             SELECT * FROM sp_obtener_estadisticas_reservas(
                 :fecha_inicio,
                 :fecha_fin
             )
         """)
-        
         result = self.SesionBD.execute(
             query,
-            {
-                "fecha_inicio": FechaInicio,
-                "fecha_fin": FechaFin
-            }
+            {"fecha_inicio": FechaInicio, "fecha_fin": FechaFin}
         )
-        
         row = result.fetchone()
         if row:
             return dict(row._mapping)

@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import date, datetime, time
 
 from app.core.database import ObtenerSesionBD
-from app.core.dependencies import ObtenerAdministrador
+from app.core.dependencies import TienePermiso
 from app.schemas.reporte import (
     EstadisticasReservasResponse,
     IngresosPorPeriodoResponse,
@@ -19,7 +19,7 @@ from app.schemas.reporte import (
 )
 from app.services.reporte_service import ServicioReportes
 
-router = APIRouter(prefix="/reportes", tags=["Reportes"], dependencies=[Depends(ObtenerAdministrador)])
+router = APIRouter(prefix="/reportes", tags=["Reportes"], dependencies=[Depends(TienePermiso("reportes.ver"))])
 
 
 @router.get("/estadisticas-reservas", response_model=EstadisticasReservasResponse)

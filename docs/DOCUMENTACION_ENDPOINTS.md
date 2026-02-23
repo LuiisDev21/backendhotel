@@ -614,7 +614,7 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
   "fecha_entrada": "date (opcional)",
   "fecha_salida": "date (opcional)",
   "numero_huespedes": "integer (opcional)",
-  "estado": "string (opcional: pendiente, confirmada, cancelada, completada)",
+  "estado": "string (opcional: pendiente, confirmada, cancelada, completada, no_show)",
   "notas": "string (opcional)"
 }
 ```
@@ -653,6 +653,91 @@ curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
 - `401`: No autenticado
 - `403`: No tiene permiso para cancelar esta reserva
 - `404`: Reserva no encontrada
+
+---
+
+### 3.7. Historial de estados de una reserva
+**GET** `/reservas/{reserva_id}/historial-estados`
+
+**Descripción:** Obtiene el historial de cambios de estado de una reserva (trazabilidad).
+
+**Autenticación:** Requerida (mismo criterio que ver la reserva: dueño o permiso `reservas.ver_todas`)
+
+**Path Parameters:**
+- `reserva_id` (integer): ID de la reserva
+
+**Response 200:** Array de registros de historial
+```json
+[
+  {
+    "id": 1,
+    "reserva_id": 1,
+    "estado_anterior": "pendiente",
+    "estado_nuevo": "confirmada",
+    "motivo": null,
+    "cambiado_por": 2,
+    "fecha_cambio": "2024-01-25T14:00:00"
+  }
+]
+```
+
+**Errores:**
+- `401`: No autenticado
+- `403`: No tiene permiso para ver esta reserva
+- `404`: Reserva no encontrada
+
+---
+
+## 3b. Políticas de cancelación
+
+### 3b.1. Listar políticas de cancelación
+**GET** `/politicas-cancelacion`
+
+**Descripción:** Lista las políticas de cancelación (para formularios de reserva y admin).
+
+**Autenticación:** No requerida (puede usarse en formularios públicos)
+
+**Query Parameters:**
+- `SoloActivos` (boolean, default true): solo políticas activas
+- `Saltar`, `Limite`: paginación
+
+**Response 200:** Array de políticas con id, nombre, descripcion, horas_anticipacion, porcentaje_penalizacion, activa, etc.
+
+### 3b.2. Obtener política por ID
+**GET** `/politicas-cancelacion/{politica_id}`
+
+**Descripción:** Obtiene una política de cancelación por ID.
+
+**Response 200:** Objeto política. **Errores:** `404` si no existe.
+
+---
+
+## 3c. Configuración del hotel
+
+### 3c.1. Listar configuración
+**GET** `/configuracion`
+
+**Descripción:** Lista todas las claves de configuración del hotel.
+
+**Autenticación:** Requerida, permiso `configuracion.modificar`
+
+**Response 200:** Array de items con clave, valor, tipo, descripcion, modificable, fecha_actualizacion.
+
+### 3c.2. Actualizar valor de una clave
+**PATCH** `/configuracion/{clave}`
+
+**Descripción:** Actualiza el valor de una clave de configuración (solo claves modificables).
+
+**Autenticación:** Requerida, permiso `configuracion.modificar`
+
+**Path Parameters:** `clave` (string)
+
+**Request Body:**
+```json
+{ "valor": "string" }
+```
+
+**Response 200:** Item de configuración actualizado. **Errores:** `400` si la clave no es modificable, `404` si la clave no existe.
 
 ---
 
