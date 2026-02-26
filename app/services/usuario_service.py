@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from datetime import timedelta, datetime, timezone
 from typing import Optional
 from app.models.usuario import Usuario
+from app.models.rol import Rol
 from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRepository
 from app.repositories.sesion_usuario_repository import SesionUsuarioRepository
@@ -46,7 +47,15 @@ class ServicioUsuarios:
             telefono=DatosUsuario.telefono,
             hashed_password=ContrasenaEncriptada
         )
-        return self.Repositorio.Crear(NuevoUsuario)
+        NuevoUsuario = self.Repositorio.Crear(NuevoUsuario)
+        # Asignar rol huésped por defecto
+        rol_huesped = self.SesionBD.query(Rol).filter(
+            Rol.nombre == "huesped",
+            Rol.activo == True
+        ).first()
+        if rol_huesped:
+            NuevoUsuario = self.Repositorio.AsignarRoles(NuevoUsuario.id, [rol_huesped.id])
+        return NuevoUsuario
 
     def AutenticarUsuario(
         self,
@@ -189,7 +198,6 @@ class ServicioUsuarios:
         AsignadoPorId: Optional[int] = None
     ) -> Usuario:
         """Asigna los roles indicados al usuario (reemplaza los actuales)."""
-        from app.models.rol import Rol
         usuario = self.Repositorio.ObtenerPorId(UsuarioId)
         if not usuario:
             raise HTTPException(
