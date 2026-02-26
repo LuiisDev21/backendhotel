@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for backendhotel on 2026-01-26T23:55:38Z
+# fly.toml app configuration file generated for backendhotelv2 on 2026-02-26T00:34:07Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'backendhotel'
+app = 'backendhotelv2'
 primary_region = 'ams'
 
 [build]
