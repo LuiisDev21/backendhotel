@@ -37,6 +37,14 @@ class ServicioHabitacion:
                 detail="El tipo de habitación especificado no existe o no está activo"
             )
         
+        # Validar que la capacidad no exceda la máxima del tipo
+        capacidad_maxima = getattr(TipoHabitacion, "capacidad_maxima", None)
+        if capacidad_maxima is not None and DatosHabitacion.capacidad > capacidad_maxima:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La capacidad de la habitación ({DatosHabitacion.capacidad}) no puede exceder la capacidad máxima del tipo ({capacidad_maxima})"
+            )
+        
         # El procedimiento almacenado valida el número único
         HabitacionNueva = Habitacion(**DatosHabitacion.model_dump())
         HabitacionCreada = self.Repositorio.Crear(HabitacionNueva, UsuarioId=self.UsuarioId)
@@ -98,6 +106,15 @@ class ServicioHabitacion:
         
         for Campo, Valor in DatosActualizacion.items():
             setattr(HabitacionEncontrada, Campo, Valor)
+        
+        # Validar capacidad vs capacidad máxima del tipo (tras aplicar cambios)
+        TipoHabitacion = self.RepositorioTipo.ObtenerPorId(HabitacionEncontrada.tipo_habitacion_id)
+        capacidad_maxima = getattr(TipoHabitacion, "capacidad_maxima", None)
+        if capacidad_maxima is not None and HabitacionEncontrada.capacidad > capacidad_maxima:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La capacidad de la habitación ({HabitacionEncontrada.capacidad}) no puede exceder la capacidad máxima del tipo ({capacidad_maxima})"
+            )
         
         HabitacionActualizada = self.Repositorio.Actualizar(HabitacionEncontrada)
         
