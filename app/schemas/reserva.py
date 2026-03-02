@@ -42,6 +42,11 @@ class ReservaResponse(ReservaBase):
     id: int
     usuario_id: int
     codigo_reserva: Optional[str] = None
+    moneda: str
+    subtotal: Decimal
+    impuestos: Decimal
+    descuentos: Decimal
+    otros_cargos: Decimal
     precio_total: Decimal
     precio_por_noche_snapshot: Optional[Decimal] = None
     canal_reserva: Optional[str] = "web"
@@ -67,3 +72,12 @@ class ReservaResponse(ReservaBase):
             if hasattr(data, 'transacciones_pago') and data.transacciones_pago is not None:
                 data.__dict__.setdefault('transacciones', data.transacciones_pago)
         return data
+
+
+class ReservaPrecioPreview(ReservaBase):
+    moneda: str
+    subtotal: Decimal
+    impuestos: Decimal
+    descuentos: Decimal
+    otros_cargos: Decimal
+    precio_total: Decimal

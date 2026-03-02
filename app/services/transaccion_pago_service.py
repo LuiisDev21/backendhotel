@@ -208,10 +208,10 @@ class ServicioTransaccionPago:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Este cargo ya fue reembolsado; no se puede reembolsar más de una vez"
             )
-        if t.estado != EstadoPago.COMPLETADO:
+        if t.estado not in (EstadoPago.COMPLETADO, EstadoPago.DISPUTADO):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Solo se pueden reembolsar transacciones completadas"
+                detail="Solo se pueden reembolsar transacciones completadas o en disputa"
             )
         monto = MontoReembolso if MontoReembolso is not None else t.monto
         # Reembolso: monto negativo en la BD (comentario en database_final)

@@ -11,7 +11,7 @@ from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRepository
 from app.repositories.sesion_usuario_repository import SesionUsuarioRepository
 from app.repositories.intento_autenticacion_repository import IntentoAutenticacionRepository
-from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token
+from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token, UsuarioPerfilUpdate
 from app.core.security import (
     VerificarContrasena,
     HashearContra,
@@ -179,6 +179,21 @@ class ServicioUsuarios:
             expires_in=int(TiempoExpiracion.total_seconds())
         )
 
+    def CerrarSesion(
+        self,
+        RefreshToken: str,
+        UsuarioId: Optional[int] = None
+    ) -> None:
+        """Revoca la sesión asociada a un refresh token (logout)."""
+        RefreshHash = HashearRefreshToken(RefreshToken)
+        Sesion = self.RepoSesion.ObtenerPorTokenHash(RefreshHash)
+        if not Sesion:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token inválido o ya cerrado"
+            )
+        self.RepoSesion.Revocar(Sesion, RevocadoPor=UsuarioId)
+
     def ObtenerUsuario(self, IdUsuario: int) -> Usuario:
         UsuarioEncontrado = self.Repositorio.ObtenerPorId(IdUsuario)
         if not UsuarioEncontrado:
@@ -187,6 +202,19 @@ class ServicioUsuarios:
                 detail="Usuario no encontrado"
             )
         return UsuarioEncontrado
+
+    def ActualizarMiPerfil(self, IdUsuario: int, Datos: UsuarioPerfilUpdate) -> Usuario:
+        """Actualiza nombre, apellido y/o teléfono del usuario (solo sus propios datos)."""
+        usuario = self.Repositorio.ObtenerPorId(IdUsuario, ConRolesPermisos=True)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado"
+            )
+        payload = Datos.model_dump(exclude_unset=True)
+        for campo, valor in payload.items():
+            setattr(usuario, campo, valor)
+        return self.Repositorio.Actualizar(usuario)
 
     def ListarUsuarios(self, Saltar: int = 0, Limite: int = 100):
         return self.Repositorio.ObtenerTodos(Saltar=Saltar, Limite=Limite)

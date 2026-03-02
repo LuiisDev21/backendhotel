@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import ObtenerSesionBD
 from app.core.dependencies import ObtenerUsuario, TienePermiso
-from app.schemas.usuario import UsuarioCreate, UsuarioConRolesResponse, UsuarioLogin, Token, RefreshTokenBody, AsignarRolesBody
+from app.schemas.usuario import UsuarioCreate, UsuarioConRolesResponse, UsuarioLogin, Token, RefreshTokenBody, AsignarRolesBody, UsuarioPerfilUpdate
 from app.services.usuario_service import ServicioUsuarios
 from app.models.usuario import Usuario
 from app.models.rol import Rol
@@ -44,9 +44,31 @@ def RefrescarToken(
     return Servicio.RefrescarToken(body.refresh_token, IpAddress=ip, UserAgent=user_agent)
 
 
+@router.post("/logout")
+def CerrarSesion(
+    body: RefreshTokenBody,
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    """Cierra la sesión revocando el refresh token recibido."""
+    Servicio = ServicioUsuarios(SesionBD)
+    Servicio.CerrarSesion(body.refresh_token)
+    return {"detail": "Sesión cerrada correctamente"}
+
+
 @router.get("/me", response_model=UsuarioConRolesResponse)
 def ObtenerUsuarioEndpoint(UsuarioActual: Usuario = Depends(ObtenerUsuario)):
     return UsuarioActual
+
+
+@router.put("/me", response_model=UsuarioConRolesResponse)
+def ActualizarMiPerfil(
+    body: UsuarioPerfilUpdate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    """El usuario autenticado actualiza su propio perfil (nombre, apellido, teléfono)."""
+    Servicio = ServicioUsuarios(SesionBD)
+    return Servicio.ActualizarMiPerfil(UsuarioActual.id, body)
 
 
 @router.get("/usuarios", response_model=List[UsuarioConRolesResponse], dependencies=[Depends(TienePermiso("usuarios.gestionar"))])

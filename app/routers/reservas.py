@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import ObtenerSesionBD
 from app.core.dependencies import ObtenerUsuario, TienePermiso, UsuarioTienePermiso
-from app.schemas.reserva import ReservaCreate, ReservaUpdate, ReservaResponse
+from app.schemas.reserva import ReservaCreate, ReservaUpdate, ReservaResponse, ReservaPrecioPreview
 from app.schemas.historial_estado_reserva import HistorialEstadoReservaResponse
 from app.services.reserva_service import ServicioReserva
 from app.models.usuario import Usuario
@@ -29,6 +29,17 @@ def CrearReserva(
 ):
     Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
     return Servicio.CrearReserva(UsuarioActual.id, DatosReserva)
+
+
+@router.post("/previsualizar-precio", response_model=ReservaPrecioPreview)
+def PrevisualizarPrecioReserva(
+    DatosReserva: ReservaCreate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    """Devuelve el desglose de precios para una reserva sin crearla."""
+    Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
+    return Servicio.PrevisualizarPrecio(UsuarioActual.id, DatosReserva)
 
 
 @router.get("", response_model=List[ReservaResponse])
