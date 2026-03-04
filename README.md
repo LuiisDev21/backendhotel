@@ -25,10 +25,13 @@
 
 Este proyecto es un **Sistema Web de Reservas de Hotel** construido con **FastAPI**, un framework moderno de Python para crear APIs REST. El sistema permite:
 
-- **Gestión de Usuarios**: Registro, autenticación y autorización
-- **Gestión de Habitaciones**: CRUD completo de habitaciones del hotel
+- **Gestión de Usuarios**: Registro, autenticación y autorización (RBAC: usuario/administrador)
+- **Tipos de Habitación**: Catálogo de tipos (Individual, Doble, Suite, Familiar) normalizado en 3NF
+- **Gestión de Habitaciones**: CRUD completo de habitaciones con referencia a tipos
 - **Sistema de Reservas**: Creación, modificación y cancelación de reservas
-- **Sistema de Pagos**: Procesamiento y gestión de pagos asociados a reservas
+- **Sistema de Pagos**: Procesamiento, actualización y reembolsos
+- **Auditoría**: Registro de acciones (CREATE, UPDATE, DELETE, reservas, pagos) en tabla `auditoria`
+- **Reportes**: Estadísticas de reservas, ingresos, ocupación, log de auditoría y ranking de clientes (solo administrador)
 
 ### 1.2 Tecnologías Utilizadas
 
@@ -63,15 +66,15 @@ Este proyecto es un **Sistema Web de Reservas de Hotel** construido con **FastAP
 ```
 backendhotel/
 ├── app/
-│   ├── core/           # Configuración y utilidades centrales
-│   ├── models/         # Modelos de base de datos (SQLAlchemy)
-│   ├── schemas/        # Esquemas de validación (Pydantic)
-│   ├── repositories/   # Acceso a datos
-│   ├── services/       # Lógica de negocio
-│   ├── routers/       # Endpoints de la API
-│   └── main.py        # Aplicación principal
-├── scripts/            # Scripts de utilidad
-├── database.sql        # Script SQL para crear tablas
+│   ├── core/           # Configuración, BD, seguridad, dependencias
+│   ├── models/         # Modelos SQLAlchemy (Usuario, TipoHabitacion, Habitacion, Reserva, Pago, Auditoria)
+│   ├── schemas/        # Schemas Pydantic (validación y respuestas API)
+│   ├── repositories/  # Acceso a datos y procedimientos almacenados
+│   ├── services/      # Lógica de negocio
+│   ├── routers/       # auth, habitaciones, reservas, pagos, tipos_habitacion, reportes
+│   └── main.py         # Aplicación FastAPI
+├── frontend/           # Interfaz web (admin, cliente, reportes con Chart.js)
+├── database.sql        # Esquema completo: tablas 3NF, auditoría, triggers, SPs, vistas
 └── requirements.txt    # Dependencias del proyecto
 ```
 
@@ -110,10 +113,12 @@ El proyecto sigue una **arquitectura en capas** que separa las responsabilidades
 
 Los routers definen los **endpoints HTTP** de la API. Cada router maneja un recurso específico:
 
-- `auth.py`: Autenticación (login, registro)
-- `habitaciones.py`: Gestión de habitaciones
-- `reservas.py`: Gestión de reservas
-- `pagos.py`: Gestión de pagos
+- `auth.py`: Autenticación (login, registro, /me, listar usuarios)
+- `tipos_habitacion.py`: Catálogo de tipos de habitación (listar, obtener por ID)
+- `habitaciones.py`: Gestión de habitaciones (CRUD, buscar disponibles, imagen)
+- `reservas.py`: Gestión de reservas (crear, listar propias/todas, actualizar, cancelar)
+- `pagos.py`: Gestión de pagos (listar, procesar, actualizar, reembolsar)
+- `reportes.py`: Reportes para administradores (estadísticas reservas, ingresos, ocupación, auditoría, clientes, dashboard)
 
 **Responsabilidades**:
 - Recibir requests HTTP
@@ -267,6 +272,15 @@ CREATE DATABASE nombre_bd;
 
 #### 3.4.2 Ejecutar Script SQL
 
+El archivo **`database.sql`** es el único script de base de datos. Incluye:
+
+- Tablas en 3NF: `tipos_habitacion`, `usuarios`, `habitaciones`, `reservas`, `pagos`, `auditoria`
+- Triggers de `fecha_actualizacion`
+- Función `registrar_auditoria` y tipo `accion_auditoria`
+- Procedimientos almacenados: `sp_crear_habitacion`, `sp_buscar_habitaciones_disponibles`, `sp_crear_reserva`, `sp_procesar_pago`, `sp_obtener_estadisticas_reservas`
+- Vistas: `vista_reservas_completas`, `vista_habitaciones_disponibles`
+- Datos iniciales de tipos de habitación
+
 ```bash
 psql -U usuario -d nombre_bd -f database.sql
 ```
@@ -398,10 +412,12 @@ class Usuario(Base):
     telefono = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     es_administrador = Column(Boolean, default=False)
-    activo = Column(Boolean, default=True)
+    activo = Column(Boolean, default=True, index=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     reservas = relationship("Reserva", back_populates="usuario")
+    auditorias = relationship("Auditoria", back_populates="usuario")
 ```
 
 #### Explicación de Columnas
@@ -409,11 +425,35 @@ class Usuario(Base):
 - **id**: Clave primaria autoincremental
 - **email**: Único e indexado para búsquedas rápidas
 - **hashed_password**: Contraseña encriptada (nunca texto plano)
-- **es_administrador**: Flag para permisos especiales
+- **es_administrador**: Flag para permisos (RBAC)
 - **activo**: Permite desactivar usuarios sin eliminarlos
 - **reservas**: Relación uno-a-muchos con Reserva
+- **auditorias**: Relación con registros de auditoría donde el usuario es actor
 
-### 4.4 Modelo de Habitación
+### 4.4 Modelo de Tipo de Habitación
+
+**Archivo**: `app/models/tipo_habitacion.py`
+
+Tabla normalizada (3NF) para los tipos de habitación. Cada habitación referencia un tipo por `tipo_habitacion_id`.
+
+```python
+class TipoHabitacion(Base):
+    __tablename__ = "tipos_habitacion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(50), unique=True, nullable=False, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    capacidad_maxima = Column(Integer, nullable=False)
+    precio_base = Column(Numeric(10, 2), nullable=False)
+    activo = Column(Boolean, default=True, index=True)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    habitaciones = relationship("Habitacion", back_populates="tipo_habitacion")
+```
+
+### 4.5 Modelo de Habitación
 
 **Archivo**: `app/models/habitacion.py`
 
@@ -422,14 +462,17 @@ class Habitacion(Base):
     __tablename__ = "habitaciones"
 
     id = Column(Integer, primary_key=True, index=True)
-    numero = Column(String, unique=True, nullable=False, index=True)
-    tipo = Column(String, nullable=False)
+    numero = Column(String(10), unique=True, nullable=False, index=True)
+    tipo_habitacion_id = Column(Integer, ForeignKey("tipos_habitacion.id"), nullable=False, index=True)
     descripcion = Column(Text, nullable=True)
     capacidad = Column(Integer, nullable=False)
     precio_por_noche = Column(Numeric(10, 2), nullable=False)
-    disponible = Column(Boolean, default=True)
+    disponible = Column(Boolean, default=True, index=True)
+    imagen_url = Column(String(500), nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    tipo_habitacion = relationship("TipoHabitacion", back_populates="habitaciones")
     reservas = relationship("Reserva", back_populates="habitacion")
 ```
 
@@ -443,7 +486,44 @@ class Habitacion(Base):
 - **DateTime**: Fecha y hora
 - **Date**: Solo fecha
 
-### 4.5 Modelo de Reserva
+### 4.6 Modelo de Auditoría
+
+**Archivo**: `app/models/auditoria.py`
+
+Registra acciones del sistema (crear/actualizar/eliminar habitaciones, reservas, pagos, etc.).
+
+```python
+class AccionAuditoria(str, enum.Enum):
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    LOGIN = "LOGIN"
+    LOGOUT = "LOGOUT"
+    RESERVA_CREATE = "RESERVA_CREATE"
+    RESERVA_CANCEL = "RESERVA_CANCEL"
+    RESERVA_CONFIRM = "RESERVA_CONFIRM"
+    PAGO_PROCESS = "PAGO_PROCESS"
+    PAGO_REFUND = "PAGO_REFUND"
+
+class Auditoria(Base):
+    __tablename__ = "auditoria"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tabla_afectada = Column(String(100), nullable=False, index=True)
+    registro_id = Column(Integer, nullable=True, index=True)
+    accion = Column(EnumType(AccionAuditoria), nullable=False, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    datos_anteriores = Column(JSONB, nullable=True)
+    datos_nuevos = Column(JSONB, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    fecha_accion = Column(DateTime, default=datetime.utcnow, index=True)
+    observaciones = Column(Text, nullable=True)
+
+    usuario = relationship("Usuario", back_populates="auditorias")
+```
+
+### 4.7 Modelo de Reserva
 
 **Archivo**: `app/models/reserva.py`
 
@@ -491,7 +571,7 @@ class Reserva(Base):
 - `EstadoReserva` define estados válidos
 - `EnumType` maneja la conversión entre Python y PostgreSQL
 
-### 4.6 Modelo de Pago
+### 4.8 Modelo de Pago
 
 **Archivo**: `app/models/pago.py`
 
@@ -528,19 +608,17 @@ class Pago(Base):
 - `reserva_id` tiene `unique=True` → Una reserva tiene un solo pago
 - `uselist=False` en relationship → Retorna un objeto, no una lista
 
-### 4.7 Crear Tablas en la Base de Datos
+### 4.9 Crear Tablas en la Base de Datos
+
+Recomendado: ejecutar el script único **`database.sql`** en PostgreSQL para crear todas las tablas, tipos ENUM, triggers, procedimientos almacenados, vistas y datos iniciales de tipos de habitación.
+
+Alternativa con SQLAlchemy (solo crea tablas, no SPs ni triggers):
 
 ```python
 from app.core.database import Base, engine
-from app.models import usuario, habitacion, reserva, pago
+from app.models import usuario, habitacion, tipo_habitacion, reserva, pago, auditoria
 
 Base.metadata.create_all(bind=engine)
-```
-
-O usar el script:
-
-```bash
-python scripts/init_database.py
 ```
 
 ---
@@ -554,41 +632,42 @@ Los **Schemas** (esquemas) definen la estructura y validación de datos usando *
 - **Models**: Estructura de la base de datos
 - **Schemas**: Estructura de datos de entrada/salida de la API
 
-### 5.2 Schema de Habitación
+### 5.2 Schema de Habitación y Tipos de Habitación
 
 **Archivo**: `app/schemas/habitacion.py`
 
-```python
-from pydantic import BaseModel
-from typing import Optional
-from decimal import Decimal
-from datetime import datetime
+Las habitaciones usan **tipo_habitacion_id** (referencia a `tipos_habitacion`) en lugar de un texto `tipo`. La respuesta incluye un campo computado `tipo_nombre` cuando se carga la relación.
 
-class Habitacion(BaseModel):
+```python
+class HabitacionBase(BaseModel):
     numero: str
-    tipo: str
+    tipo_habitacion_id: int
     descripcion: Optional[str] = None
     capacidad: int
     precio_por_noche: Decimal
     disponible: bool = True
 
-class HabitacionCreate(Habitacion):
+class HabitacionCreate(HabitacionBase):
     pass
 
 class HabitacionUpdate(BaseModel):
-    tipo: Optional[str] = None
+    tipo_habitacion_id: Optional[int] = None
     descripcion: Optional[str] = None
     capacidad: Optional[int] = None
     precio_por_noche: Optional[Decimal] = None
     disponible: Optional[bool] = None
 
-class HabitacionResponse(Habitacion):
+class HabitacionResponse(HabitacionBase):
     id: int
     fecha_creacion: datetime
+    fecha_actualizacion: datetime
+    tipo_nombre: Optional[str] = None  # Computado desde tipo_habitacion.nombre
 
     class Config:
         from_attributes = True
 ```
+
+Schemas para **TipoHabitacion**: `TipoHabitacionBase`, `TipoHabitacionCreate`, `TipoHabitacionUpdate`, `TipoHabitacionResponse` (en el mismo archivo).
 
 ### 5.3 Schema de Reserva con Campos Computados
 
@@ -889,7 +968,19 @@ def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
 
 Esto permite que el schema `ReservaResponse` acceda a `reserva.habitacion.numero` y `reserva.usuario.nombre` sin queries adicionales.
 
-### 6.6 Consulta Compleja: Habitaciones Disponibles
+### 6.6 Procedimientos Almacenados y Reportes
+
+**Archivo**: `app/repositories/stored_procedures.py`
+
+Las operaciones críticas (crear habitación, buscar disponibles, crear reserva, procesar pago, estadísticas) pueden usar procedimientos almacenados de PostgreSQL definidos en `database.sql`:
+
+- `sp_crear_habitacion`, `sp_buscar_habitaciones_disponibles`, `sp_crear_reserva`, `sp_procesar_pago`, `sp_obtener_estadisticas_reservas`
+
+**Archivo**: `app/repositories/reporte_repository.py`
+
+Consultas agregadas para reportes: ingresos por período, ocupación por habitación o tipo, ranking de clientes. El servicio `ServicioReportes` (`app/services/reporte_service.py`) orquesta estos datos y el SP de estadísticas para los endpoints de **Reportes** (solo administrador).
+
+### 6.7 Consulta Compleja: Habitaciones Disponibles
 
 ```python
 def BuscarDisponibles(
@@ -941,7 +1032,7 @@ def BuscarDisponibles(
 3. Filtra habitaciones disponibles
 4. Aplica filtros opcionales
 
-### 6.7 Manejo de Transacciones
+### 6.8 Manejo de Transacciones
 
 ```python
 def CrearConTransaccion(self, HabitacionNueva: Habitacion):
@@ -1572,19 +1663,23 @@ def ObtenerReserva(
 **Archivo**: `app/main.py`
 
 ```python
-from app.routers import auth, habitaciones, reservas, pagos
+from app.routers import auth, habitaciones, reservas, pagos, tipos_habitacion, reportes
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(habitaciones.router, prefix=settings.API_V1_PREFIX)
+app.include_router(tipos_habitacion.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reservas.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pagos.router, prefix=settings.API_V1_PREFIX)
+app.include_router(reportes.router, prefix=settings.API_V1_PREFIX)
 ```
 
 **Rutas finales**:
-- `/api/v1/auth/*`
-- `/api/v1/habitaciones/*`
-- `/api/v1/reservas/*`
-- `/api/v1/pagos/*`
+- `/api/v1/auth/*` — Login, registro, /me, listar usuarios
+- `/api/v1/tipos-habitacion/*` — Listar y obtener tipos de habitación
+- `/api/v1/habitaciones/*` — CRUD habitaciones, buscar disponibles, subir imagen
+- `/api/v1/reservas/*` — CRUD reservas (propias o todas para admin)
+- `/api/v1/pagos/*` — Listar, procesar, actualizar, reembolsar
+- `/api/v1/reportes/*` — Estadísticas reservas, ingresos, ocupación, auditoría, clientes, dashboard (solo admin)
 
 ---
 

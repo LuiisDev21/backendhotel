@@ -3,38 +3,91 @@ Repositorio de Habitacion, se define el repositorio de la habitacion con SQLAlch
 - ObtenerPorId: Obtiene una habitacion por su ID.
 - ObtenerPorNumero: Obtiene una habitacion por su numero.
 - ObtenerTodas: Obtiene todas las habitaciones.
-- Crear: Crea una nueva habitacion.
+- Crear: Crea una nueva habitacion (ORM; fallback si el SP no persiste en la BD).
 - Actualizar: Actualiza una habitacion existente.
 - Eliminar: Elimina una habitacion existente.
-- BuscarDisponibles: Busca las habitaciones disponibles para una fecha de entrada y salida.
+- BuscarDisponibles: Busca las habitaciones disponibles usando procedimiento almacenado.
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from datetime import date
+from decimal import Decimal
+from fastapi import HTTPException
 from app.models.habitacion import Habitacion
-from app.models.reserva import Reserva, EstadoReserva
+from app.repositories.stored_procedures import StoredProcedures
+from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
+from app.models.auditoria import AccionAuditoria
 
 
 class HabitacionRepository:
     def __init__(self, SesionBD: Session):
         self.SesionBD = SesionBD
+        self.StoredProcedures = StoredProcedures(SesionBD)
 
     def ObtenerPorId(self, IdHabitacion: int) -> Optional[Habitacion]:
-        return self.SesionBD.query(Habitacion).filter(Habitacion.id == IdHabitacion).first()
+        return (
+            self.SesionBD.query(Habitacion)
+            .options(
+                joinedload(Habitacion.tipo_habitacion),
+                joinedload(Habitacion.politica_cancelacion)
+            )
+            .filter(Habitacion.id == IdHabitacion)
+            .first()
+        )
 
     def ObtenerPorNumero(self, Numero: str) -> Optional[Habitacion]:
-        return self.SesionBD.query(Habitacion).filter(Habitacion.numero == Numero).first()
+        return (
+            self.SesionBD.query(Habitacion)
+            .options(joinedload(Habitacion.tipo_habitacion))
+            .filter(Habitacion.numero == Numero)
+            .first()
+        )
 
     def ObtenerTodas(self, Saltar: int = 0, Limite: int = 100) -> List[Habitacion]:
-        return self.SesionBD.query(Habitacion).offset(Saltar).limit(Limite).all()
+        return (
+            self.SesionBD.query(Habitacion)
+            .options(
+                joinedload(Habitacion.tipo_habitacion),
+                joinedload(Habitacion.politica_cancelacion)
+            )
+            .offset(Saltar)
+            .limit(Limite)
+            .all()
+        )
 
-    def Crear(self, HabitacionNueva: Habitacion) -> Habitacion:
-        self.SesionBD.add(HabitacionNueva)
-        self.SesionBD.commit()
-        self.SesionBD.refresh(HabitacionNueva)
-        return HabitacionNueva
+    def Crear(
+        self,
+        HabitacionNueva: Habitacion,
+        UsuarioId: Optional[int] = None
+    ) -> Habitacion:
+        """Crea una habitación por ORM (el SP en la BD no persiste el INSERT en este entorno)."""
+        if self.ObtenerPorNumero(HabitacionNueva.numero):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ya existe una habitación con el número {HabitacionNueva.numero}"
+            )
+        if HabitacionNueva.capacidad <= 0:
+            raise HTTPException(status_code=400, detail="La capacidad debe ser mayor a 0")
+        if HabitacionNueva.precio_por_noche <= 0:
+            raise HTTPException(status_code=400, detail="El precio por noche debe ser mayor a 0")
+        try:
+            self.SesionBD.add(HabitacionNueva)
+            self.SesionBD.flush()
+            registrar_auditoria(
+                self.SesionBD,
+                "habitaciones",
+                AccionAuditoria.CREATE,
+                RegistroId=HabitacionNueva.id,
+                UsuarioId=UsuarioId,
+                DatosNuevos=convertir_modelo_a_dict(HabitacionNueva),
+            )
+            self.SesionBD.commit()
+            self.SesionBD.refresh(HabitacionNueva)
+            return self.ObtenerPorId(HabitacionNueva.id)
+        except Exception as e:
+            self.SesionBD.rollback()
+            raise
 
     def Actualizar(self, HabitacionActualizada: Habitacion) -> Habitacion:
         self.SesionBD.commit()
@@ -50,34 +103,30 @@ class HabitacionRepository:
         FechaEntrada: date, 
         FechaSalida: date, 
         Capacidad: Optional[int] = None,
-        Tipo: Optional[str] = None
+        TipoHabitacionId: Optional[int] = None
     ) -> List[Habitacion]:
-        from sqlalchemy import cast, String
-        ValorEstadoCancelada = EstadoReserva.CANCELADA.value
-        HabitacionesOcupadas = self.SesionBD.query(Reserva.habitacion_id).filter(
-            and_(
-                cast(Reserva.estado, String) != ValorEstadoCancelada,
-                or_(
-                    and_(Reserva.fecha_entrada <= FechaEntrada, Reserva.fecha_salida > FechaEntrada),
-                    and_(Reserva.fecha_entrada < FechaSalida, Reserva.fecha_salida >= FechaSalida),
-                    and_(Reserva.fecha_entrada >= FechaEntrada, Reserva.fecha_salida <= FechaSalida)
-                )
+        """Busca habitaciones disponibles usando el procedimiento almacenado."""
+        try:
+            resultados = self.StoredProcedures.BuscarHabitacionesDisponibles(
+                FechaEntrada=FechaEntrada,
+                FechaSalida=FechaSalida,
+                Capacidad=Capacidad,
+                TipoHabitacionId=TipoHabitacionId
             )
-        ).distinct()
-        
-        IdsHabitacionesOcupadas = [Fila[0] for Fila in HabitacionesOcupadas]
-
-        Consulta = self.SesionBD.query(Habitacion).filter(
-            Habitacion.disponible == True
-        )
-        
-        if IdsHabitacionesOcupadas:
-            Consulta = Consulta.filter(~Habitacion.id.in_(IdsHabitacionesOcupadas))
-
-        if Capacidad:
-            Consulta = Consulta.filter(Habitacion.capacidad >= Capacidad)
-        
-        if Tipo:
-            Consulta = Consulta.filter(Habitacion.tipo == Tipo)
-
-        return Consulta.all()
+            
+            # Convertir resultados a objetos Habitacion
+            ids = [r['id'] for r in resultados]
+            if not ids:
+                return []
+            
+            return (
+                self.SesionBD.query(Habitacion)
+                .options(
+                    joinedload(Habitacion.tipo_habitacion),
+                    joinedload(Habitacion.politica_cancelacion)
+                )
+                .filter(Habitacion.id.in_(ids))
+                .all()
+            )
+        except Exception as e:
+            raise

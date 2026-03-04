@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, Any
+from typing import Optional, Any, List
 from decimal import Decimal
 from datetime import date, datetime
 from app.models.reserva import EstadoReserva
@@ -14,7 +14,8 @@ class ReservaBase(BaseModel):
 
 
 class ReservaCreate(ReservaBase):
-    pass
+    canal_reserva: Optional[str] = "web"
+    politica_cancelacion_id: Optional[int] = None
 
 
 class ReservaUpdate(BaseModel):
@@ -25,28 +26,44 @@ class ReservaUpdate(BaseModel):
     notas: Optional[str] = None
 
 
+class TransaccionPagoEnReservaResponse(BaseModel):
+    id: int
+    tipo: str
+    monto: Decimal
+    metodo_pago: str
+    estado: str
+    fecha_creacion: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ReservaResponse(ReservaBase):
     id: int
     usuario_id: int
+    codigo_reserva: Optional[str] = None
     precio_total: Decimal
+    precio_por_noche_snapshot: Optional[Decimal] = None
+    canal_reserva: Optional[str] = "web"
+    politica_cancelacion_id: Optional[int] = None
     estado: EstadoReserva
     fecha_creacion: datetime
     fecha_actualizacion: datetime
     numero_habitacion: Optional[str] = None
     nombre_usuario: Optional[str] = None
+    transacciones: Optional[List[TransaccionPagoEnReservaResponse]] = None
 
     class Config:
         from_attributes = True
-    
+
     @model_validator(mode='before')
     @classmethod
     def extraer_datos_relaciones(cls, data: Any) -> Any:
-        # Si es un objeto ORM, extraer datos de las relaciones
         if hasattr(data, '__dict__'):
-            # Extraer número de habitación
             if hasattr(data, 'habitacion') and data.habitacion:
-                data.__dict__['numero_habitacion'] = data.habitacion.numero
-            # Extraer nombre completo del usuario
+                data.__dict__.setdefault('numero_habitacion', data.habitacion.numero)
             if hasattr(data, 'usuario') and data.usuario:
-                data.__dict__['nombre_usuario'] = f"{data.usuario.nombre} {data.usuario.apellido}"
+                data.__dict__.setdefault('nombre_usuario', f"{data.usuario.nombre} {data.usuario.apellido}")
+            if hasattr(data, 'transacciones_pago') and data.transacciones_pago is not None:
+                data.__dict__.setdefault('transacciones', data.transacciones_pago)
         return data
