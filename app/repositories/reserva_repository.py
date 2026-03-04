@@ -7,12 +7,15 @@ Repositorio de Reserva, se define el repositorio de la reserva con SQLAlchemy.
 - Actualizar: Actualiza una reserva existente.
 - Eliminar: Elimina una reserva existente.
 """
+import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from datetime import date
 from app.models.reserva import Reserva
 from app.models.historial_estado_reserva import HistorialEstadoReserva
 from app.repositories.stored_procedures import StoredProcedures
+
+logger = logging.getLogger(__name__)
 
 
 class ReservaRepository:
@@ -70,6 +73,7 @@ class ReservaRepository:
             return self.ObtenerPorId(id_reserva)
         except Exception as e:
             self.SesionBD.rollback()
+            logger.exception("Error en Crear reserva (SP): %s", e)
             raise
 
     def ObtenerHistorialEstados(self, IdReserva: int) -> List[HistorialEstadoReserva]:

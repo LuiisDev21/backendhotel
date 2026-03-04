@@ -89,3 +89,28 @@ def TienePermiso(permiso_requerido: str):
         return UsuarioActual
 
     return _verificar
+
+
+def ObtenerReservaConPermiso(permiso_requerido: str = "reservas.ver_todas"):
+    """
+    Dependencia que obtiene una reserva por ID solo si el usuario es dueño o tiene el permiso indicado.
+    Uso: ReservaEncontrada = Depends(ObtenerReservaConPermiso()) para ver/actualizar,
+    o Depends(ObtenerReservaConPermiso("reservas.cancelar")) para cancelar.
+    """
+
+    async def _dependency(
+        reserva_id: int,
+        UsuarioActual: Usuario = Depends(ObtenerUsuario),
+        SesionBD: Session = Depends(ObtenerSesionBD),
+    ):
+        from app.services.reserva_service import ServicioReserva
+        Servicio = ServicioReserva(SesionBD)
+        ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
+        if ReservaEncontrada.usuario_id != UsuarioActual.id and not UsuarioTienePermiso(UsuarioActual, permiso_requerido):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permiso para acceder a esta reserva"
+            )
+        return ReservaEncontrada
+
+    return _dependency
