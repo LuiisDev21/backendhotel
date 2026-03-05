@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import ObtenerSesionBD
 from app.core.dependencies import ObtenerUsuario, TienePermiso
-from app.schemas.usuario import UsuarioCreate, UsuarioConRolesResponse, UsuarioLogin, Token, RefreshTokenBody, AsignarRolesBody, UsuarioPerfilUpdate
+from app.schemas.usuario import UsuarioCreate, UsuarioConRolesResponse, UsuarioLogin, Token, RefreshTokenBody, AsignarRolesBody, UsuarioPerfilUpdate, UsuarioAdminUpdate
 from app.services.usuario_service import ServicioUsuarios
 from app.models.usuario import Usuario
 from app.models.rol import Rol
@@ -99,3 +99,15 @@ def AsignarRolesUsuario(
     Servicio = ServicioUsuarios(SesionBD)
     usuario = Servicio.AsignarRolesUsuario(usuario_id, body.rol_ids, AsignadoPorId=UsuarioActual.id)
     return usuario
+
+
+@router.patch("/usuarios/{usuario_id}", response_model=UsuarioConRolesResponse, dependencies=[Depends(TienePermiso("usuarios.gestionar"))])
+def ActualizarUsuarioAdmin(
+    usuario_id: int,
+    body: UsuarioAdminUpdate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    """Actualiza el estado activo/inactivo de un usuario. Requiere permiso usuarios.gestionar. No se puede desactivar la propia cuenta."""
+    Servicio = ServicioUsuarios(SesionBD)
+    return Servicio.ActualizarUsuarioAdmin(usuario_id, body, AdministradorId=UsuarioActual.id)
