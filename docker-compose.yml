@@ -21,13 +21,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
-    command: >
-      sh -c "
-        echo 'Iniciando...' &&
-        sleep 2 &&
-        python scripts/init_database.py &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-      "
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - backendhotel_network
     restart: unless-stopped

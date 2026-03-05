@@ -11,7 +11,7 @@ from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRepository
 from app.repositories.sesion_usuario_repository import SesionUsuarioRepository
 from app.repositories.intento_autenticacion_repository import IntentoAutenticacionRepository
-from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token, UsuarioPerfilUpdate
+from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token, UsuarioPerfilUpdate, UsuarioAdminUpdate
 from app.core.security import (
     VerificarContrasena,
     HashearContra,
@@ -242,3 +242,26 @@ class ServicioUsuarios:
                     detail=f"Roles no encontrados o inactivos: {sorted(invalidos)}"
                 )
         return self.Repositorio.AsignarRoles(UsuarioId, list(RolIds), AsignadoPorId)
+
+    def ActualizarUsuarioAdmin(
+        self,
+        UsuarioId: int,
+        Datos: UsuarioAdminUpdate,
+        AdministradorId: int,
+    ) -> Usuario:
+        """Actualiza campos de un usuario (ej. activo) por un administrador. No puede desactivarse a sí mismo."""
+        usuario = self.Repositorio.ObtenerPorId(UsuarioId, ConRolesPermisos=True)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado"
+            )
+        if Datos.activo is False and usuario.id == AdministradorId:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No puedes desactivar tu propia cuenta"
+            )
+        payload = Datos.model_dump(exclude_unset=True)
+        for campo, valor in payload.items():
+            setattr(usuario, campo, valor)
+        return self.Repositorio.Actualizar(usuario)

@@ -18,13 +18,7 @@ services:
       SUPABASE_BUCKET: ${SUPABASE_BUCKET:-habitaciones}
     ports:
       - "${API_PORT:-8000}:8000"
-    command: >
-      sh -c "
-        echo 'Iniciando...' &&
-        sleep 2 &&
-        python scripts/init_database.py &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000
-      "
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     networks:
       - backendhotel_network
     restart: unless-stopped

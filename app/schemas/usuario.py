@@ -35,6 +35,11 @@ class AsignarRolesBody(BaseModel):
     rol_ids: List[int]
 
 
+class UsuarioAdminUpdate(BaseModel):
+    """Datos que un administrador puede actualizar de un usuario (estado activo/inactivo)."""
+    activo: Optional[bool] = None
+
+
 class UsuarioResponse(UsuarioBase):
     id: int
     activo: bool
