@@ -44,6 +44,24 @@ class ServicioTransaccionPago:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se puede registrar pago en una reserva cancelada"
             )
+        suma_pagada = self.Repositorio.SumaCargosCompletadosPorReserva(ReservaEncontrada.id)
+        if suma_pagada >= ReservaEncontrada.precio_total:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La reserva ya está pagada en su totalidad; no se pueden registrar más pagos"
+            )
+        if Datos.tipo == TipoTransaccion.CARGO:
+            if self.Repositorio.ExisteCargoParaReserva(ReservaEncontrada.id):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Esta reserva ya tiene un pago (cargo) registrado; no se permite más de un pago por reserva"
+                )
+            pendiente = ReservaEncontrada.precio_total - suma_pagada
+            if round(Datos.monto, 2) != round(pendiente, 2):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No se permiten pagos parciales. El cargo debe ser por el importe pendiente exacto: {pendiente}. Total reserva: {ReservaEncontrada.precio_total}, ya pagado: {suma_pagada}"
+                )
         numero_transaccion = Datos.numero_transaccion or str(uuid.uuid4())
         transaccion = TransaccionPago(
             reserva_id=Datos.reserva_id,
@@ -119,6 +137,15 @@ class ServicioTransaccionPago:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La transacción ya está procesada"
             )
+        if t.tipo == TipoTransaccion.CARGO:
+            reserva = self.RepositorioReserva.ObtenerPorId(t.reserva_id)
+            if reserva:
+                suma_actual = self.Repositorio.SumaCargosCompletadosPorReserva(reserva.id)
+                if suma_actual + t.monto > reserva.precio_total:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Procesar este cargo haría que el total pagado ({suma_actual + t.monto}) supere el importe de la reserva ({reserva.precio_total}). No se puede procesar."
+                    )
         t.estado = EstadoPago.COMPLETADO
         t.fecha_pago = datetime.now(timezone.utc)
         t.procesado_por = UsuarioId or self.UsuarioId
@@ -169,12 +196,22 @@ class ServicioTransaccionPago:
         MontoReembolso: Optional[Decimal] = None,
         UsuarioId: Optional[int] = None
     ) -> TransaccionPago:
-        """Registra un reembolso como nueva transacción tipo reembolso (monto negativo o según criterio)."""
+        """Registra un reembolso como nueva transacción tipo reembolso y marca el cargo original como reembolsado."""
         t = self.ObtenerTransaccion(IdTransaccion)
-        if t.estado != EstadoPago.COMPLETADO:
+        if t.tipo == TipoTransaccion.REEMBOLSO:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Solo se pueden reembolsar transacciones completadas"
+                detail="No se puede reembolsar una transacción que ya es un reembolso"
+            )
+        if t.estado == EstadoPago.REEMBOLSADO:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este cargo ya fue reembolsado; no se puede reembolsar más de una vez"
+            )
+        if t.estado not in (EstadoPago.COMPLETADO, EstadoPago.DISPUTADO):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Solo se pueden reembolsar transacciones completadas o en disputa"
             )
         monto = MontoReembolso if MontoReembolso is not None else t.monto
         # Reembolso: monto negativo en la BD (comentario en database_final)
@@ -190,6 +227,13 @@ class ServicioTransaccionPago:
             fecha_pago=datetime.now(timezone.utc),
         )
         creada = self.Repositorio.Crear(reembolso)
+        # Marcar el cargo original como reembolsado para que no se pueda reembolsar de nuevo
+        t.estado = EstadoPago.REEMBOLSADO
+        self.Repositorio.Actualizar(t)
+        reserva = self.RepositorioReserva.ObtenerPorId(t.reserva_id)
+        if reserva and reserva.estado != EstadoReserva.CANCELADA:
+            reserva.estado = EstadoReserva.CANCELADA
+            self.RepositorioReserva.Actualizar(reserva)
         registrar_auditoria(
             SesionBD=self.SesionBD,
             TablaAfectada="transacciones_pago",

@@ -27,6 +27,18 @@ class TransaccionPagoRepository:
             .all()
         )
 
+    def ExisteCargoParaReserva(self, IdReserva: int) -> bool:
+        """Indica si la reserva ya tiene al menos un cargo (en cualquier estado)."""
+        return (
+            self.SesionBD.query(TransaccionPago.id)
+            .filter(
+                TransaccionPago.reserva_id == IdReserva,
+                TransaccionPago.tipo == TipoTransaccion.CARGO,
+            )
+            .first()
+            is not None
+        )
+
     def SumaCargosCompletadosPorReserva(self, IdReserva: int) -> Decimal:
         """Suma de montos de transacciones tipo cargo y estado completado."""
         r = (

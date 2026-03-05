@@ -5,13 +5,13 @@ from app.routers import auth, habitaciones, reservas, pagos, tipos_habitacion, r
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    version="1.0.0",
+    version="1.2",
     description="RoyalPalms API"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.get_cors_origins_list(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

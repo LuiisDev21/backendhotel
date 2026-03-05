@@ -11,12 +11,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import ObtenerSesionBD
-from app.core.dependencies import ObtenerUsuario, TienePermiso, UsuarioTienePermiso
-from app.schemas.reserva import ReservaCreate, ReservaUpdate, ReservaResponse
+from app.core.dependencies import ObtenerUsuario, TienePermiso, ObtenerReservaConPermiso
+from app.schemas.reserva import ReservaCreate, ReservaUpdate, ReservaResponse, ReservaPrecioPreview
 from app.schemas.historial_estado_reserva import HistorialEstadoReservaResponse
 from app.services.reserva_service import ServicioReserva
 from app.models.usuario import Usuario
-from fastapi import HTTPException, status
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
@@ -29,6 +28,17 @@ def CrearReserva(
 ):
     Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
     return Servicio.CrearReserva(UsuarioActual.id, DatosReserva)
+
+
+@router.post("/previsualizar-precio", response_model=ReservaPrecioPreview)
+def PrevisualizarPrecioReserva(
+    DatosReserva: ReservaCreate,
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    """Devuelve el desglose de precios para una reserva sin crearla."""
+    Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
+    return Servicio.PrevisualizarPrecio(UsuarioActual.id, DatosReserva)
 
 
 @router.get("", response_model=List[ReservaResponse])
@@ -54,69 +64,36 @@ def ListarTodasReservas(
 
 @router.get("/{reserva_id}/historial-estados", response_model=List[HistorialEstadoReservaResponse])
 def ObtenerHistorialEstadosReserva(
-    reserva_id: int,
-    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    ReservaEncontrada = Depends(ObtenerReservaConPermiso()),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     """Obtiene el historial de cambios de estado de una reserva. Mismo permiso que ver la reserva."""
     Servicio = ServicioReserva(SesionBD)
-    ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
-    if ReservaEncontrada.usuario_id != UsuarioActual.id and not UsuarioTienePermiso(UsuarioActual, "reservas.ver_todas"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permiso para ver esta reserva"
-        )
-    return Servicio.ObtenerHistorialEstados(reserva_id)
+    return Servicio.ObtenerHistorialEstados(ReservaEncontrada.id)
 
 
 @router.get("/{reserva_id}", response_model=ReservaResponse)
-def ObtenerReserva(
-    reserva_id: int,
-    UsuarioActual: Usuario = Depends(ObtenerUsuario),
-    SesionBD: Session = Depends(ObtenerSesionBD)
-):
-    Servicio = ServicioReserva(SesionBD)
-    ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
-    
-    if ReservaEncontrada.usuario_id != UsuarioActual.id and not UsuarioTienePermiso(UsuarioActual, "reservas.ver_todas"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permiso para ver esta reserva"
-        )
+def ObtenerReserva(ReservaEncontrada = Depends(ObtenerReservaConPermiso())):
+    """Obtiene una reserva. Acceso: dueño de la reserva o permiso reservas.ver_todas."""
     return ReservaEncontrada
 
 
 @router.put("/{reserva_id}", response_model=ReservaResponse)
 def ActualizarReserva(
-    reserva_id: int,
     DatosReserva: ReservaUpdate,
-    UsuarioActual: Usuario = Depends(ObtenerUsuario),
-    SesionBD: Session = Depends(ObtenerSesionBD)
-):
-    Servicio = ServicioReserva(SesionBD)
-    ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
-    
-    if ReservaEncontrada.usuario_id != UsuarioActual.id and not UsuarioTienePermiso(UsuarioActual, "reservas.ver_todas"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permiso para modificar esta reserva"
-        )
-    return Servicio.ActualizarReserva(reserva_id, DatosReserva)
-
-
-@router.post("/{reserva_id}/cancelar", response_model=ReservaResponse)
-def CancelarReserva(
-    reserva_id: int,
+    ReservaEncontrada = Depends(ObtenerReservaConPermiso()),
     UsuarioActual: Usuario = Depends(ObtenerUsuario),
     SesionBD: Session = Depends(ObtenerSesionBD)
 ):
     Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
-    ReservaEncontrada = Servicio.ObtenerReserva(reserva_id)
-    
-    if ReservaEncontrada.usuario_id != UsuarioActual.id and not UsuarioTienePermiso(UsuarioActual, "reservas.cancelar"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permiso para cancelar esta reserva"
-        )
-    
-    return Servicio.CancelarReserva(reserva_id)
+    return Servicio.ActualizarReserva(ReservaEncontrada.id, DatosReserva)
+
+
+@router.post("/{reserva_id}/cancelar", response_model=ReservaResponse)
+def CancelarReserva(
+    ReservaEncontrada = Depends(ObtenerReservaConPermiso("reservas.cancelar")),
+    UsuarioActual: Usuario = Depends(ObtenerUsuario),
+    SesionBD: Session = Depends(ObtenerSesionBD)
+):
+    Servicio = ServicioReserva(SesionBD, UsuarioId=UsuarioActual.id)
+    return Servicio.CancelarReserva(ReservaEncontrada.id)

@@ -1,6 +1,7 @@
 """
 Repositorio de Usuario con SQLAlchemy.
 """
+import logging
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import delete
 from typing import Optional, List
@@ -28,8 +29,9 @@ class UsuarioRepository:
     def ObtenerPorEmail(self, Email: str) -> Optional[Usuario]:
         try:
             return self.SesionBD.query(Usuario).filter(Usuario.email == Email).first()
-        except Exception:
+        except Exception as e:
             self.SesionBD.rollback()
+            logging.getLogger(__name__).exception("Error en ObtenerPorEmail: %s", e)
             raise
 
     def Crear(self, NuevoUsuario: Usuario) -> Usuario:
@@ -38,8 +40,9 @@ class UsuarioRepository:
             self.SesionBD.commit()
             self.SesionBD.refresh(NuevoUsuario)
             return NuevoUsuario
-        except Exception:
+        except Exception as e:
             self.SesionBD.rollback()
+            logging.getLogger(__name__).exception("Error en Crear usuario: %s", e)
             raise
 
     def Actualizar(self, UsuarioActualizado: Usuario) -> Usuario:

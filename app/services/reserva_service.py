@@ -21,6 +21,7 @@ from app.repositories.reserva_repository import ReservaRepository
 from app.repositories.habitacion_repository import HabitacionRepository
 from app.repositories.politica_cancelacion_repository import PoliticaCancelacionRepository
 from app.repositories.transaccion_pago_repository import TransaccionPagoRepository
+from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRepository
 from app.schemas.reserva import ReservaCreate, ReservaUpdate
 from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
 from app.models.auditoria import AccionAuditoria
@@ -32,6 +33,7 @@ class ServicioReserva:
         self.RepositorioHabitacion = HabitacionRepository(SesionBD)
         self.RepoPolitica = PoliticaCancelacionRepository(SesionBD)
         self.RepoTransaccion = TransaccionPagoRepository(SesionBD)
+        self.RepoConfig = ConfiguracionHotelRepository(SesionBD)
         self.SesionBD = SesionBD
         self.UsuarioId = UsuarioId
 
@@ -130,6 +132,82 @@ class ServicioReserva:
     def ListarTodasReservas(self, Saltar: int = 0, Limite: int = 100) -> List[Reserva]:
         return self.Repositorio.ObtenerTodas(Saltar=Saltar, Limite=Limite)
 
+    def PrevisualizarPrecio(
+        self,
+        IdUsuario: int,
+        DatosReserva: ReservaCreate
+    ) -> dict:
+        """Calcula el desglose de precios sin crear la reserva."""
+        HabitacionEncontrada = self.RepositorioHabitacion.ObtenerPorId(DatosReserva.habitacion_id)
+        if not HabitacionEncontrada:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Habitacion no encontrada"
+            )
+
+        if getattr(HabitacionEncontrada, "estado", "disponible") != "disponible":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La habitación no está disponible"
+            )
+
+        if DatosReserva.numero_huespedes > HabitacionEncontrada.capacidad:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La habitacion solo puede alojar {HabitacionEncontrada.capacidad} huéspedes"
+            )
+
+        HabitacionesDisponibles = self.RepositorioHabitacion.BuscarDisponibles(
+            DatosReserva.fecha_entrada,
+            DatosReserva.fecha_salida
+        )
+
+        if HabitacionEncontrada not in HabitacionesDisponibles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La habitacion no esta disponible en las fechas seleccionadas"
+            )
+
+        NumeroNoches = (DatosReserva.fecha_salida - DatosReserva.fecha_entrada).days
+        if NumeroNoches <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La fecha de salida debe ser posterior a la fecha de entrada"
+            )
+
+        subtotal = Decimal(str(HabitacionEncontrada.precio_por_noche)) * Decimal(str(NumeroNoches))
+
+        # Moneda e impuesto desde configuracion_hotel
+        moneda_row = self.RepoConfig.ObtenerPorClave("hotel_moneda")
+        moneda = (moneda_row.valor if moneda_row and getattr(moneda_row, "valor", None) else "USD").upper()
+        if len(moneda) != 3:
+            moneda = "USD"
+
+        impuesto_row = self.RepoConfig.ObtenerPorClave("impuesto_porcentaje")
+        try:
+            impuesto_pct = Decimal(str(impuesto_row.valor)) if impuesto_row and impuesto_row.valor is not None else Decimal("0")
+        except Exception:
+            impuesto_pct = Decimal("0")
+
+        impuestos = (subtotal * impuesto_pct / Decimal("100")).quantize(Decimal("0.01"))
+        descuentos = Decimal("0")
+        otros_cargos = Decimal("0")
+        precio_total = subtotal + otros_cargos + impuestos - descuentos
+
+        return {
+            "habitacion_id": DatosReserva.habitacion_id,
+            "fecha_entrada": DatosReserva.fecha_entrada,
+            "fecha_salida": DatosReserva.fecha_salida,
+            "numero_huespedes": DatosReserva.numero_huespedes,
+            "notas": DatosReserva.notas,
+            "moneda": moneda,
+            "subtotal": subtotal,
+            "impuestos": impuestos,
+            "descuentos": descuentos,
+            "otros_cargos": otros_cargos,
+            "precio_total": precio_total,
+        }
+
     def ActualizarReserva(
         self,
         IdReserva: int,
@@ -162,17 +240,50 @@ class ServicioReserva:
         if "fecha_entrada" in DatosActualizacion or "fecha_salida" in DatosActualizacion:
             FechaEntrada = DatosActualizacion.get("fecha_entrada", ReservaEncontrada.fecha_entrada)
             FechaSalida = DatosActualizacion.get("fecha_salida", ReservaEncontrada.fecha_salida)
-            
+
             HabitacionEncontrada = self.RepositorioHabitacion.ObtenerPorId(ReservaEncontrada.habitacion_id)
             HabitacionesDisponibles = self.RepositorioHabitacion.BuscarDisponibles(FechaEntrada, FechaSalida)
-            
+
             if HabitacionEncontrada not in HabitacionesDisponibles:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="La habitacion no esta disponible en las nuevas fechas"
                 )
-            
-            ReservaEncontrada.precio_total = self.CalcularPrecioTotal(HabitacionEncontrada, FechaEntrada, FechaSalida)
+
+            # Recalcular desglose de precios siguiendo la misma lógica que sp_crear_reserva
+            NumeroNoches = (FechaSalida - FechaEntrada).days
+            if NumeroNoches <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La fecha de salida debe ser posterior a la fecha de entrada"
+                )
+
+            subtotal = Decimal(str(HabitacionEncontrada.precio_por_noche)) * Decimal(str(NumeroNoches))
+
+            # Moneda e impuesto desde configuracion_hotel
+            moneda_row = self.RepoConfig.ObtenerPorClave("hotel_moneda")
+            moneda = (moneda_row.valor if moneda_row and getattr(moneda_row, "valor", None) else "USD").upper()
+            if len(moneda) != 3:
+                moneda = "USD"
+
+            impuesto_row = self.RepoConfig.ObtenerPorClave("impuesto_porcentaje")
+            try:
+                impuesto_pct = Decimal(str(impuesto_row.valor)) if impuesto_row and impuesto_row.valor is not None else Decimal("0")
+            except Exception:
+                impuesto_pct = Decimal("0")
+
+            impuestos = (subtotal * impuesto_pct / Decimal("100")).quantize(Decimal("0.01"))
+            descuentos = ReservaEncontrada.descuentos or Decimal("0")
+            otros_cargos = ReservaEncontrada.otros_cargos or Decimal("0")
+            precio_total = subtotal + otros_cargos + impuestos - descuentos
+
+            ReservaEncontrada.moneda = moneda
+            ReservaEncontrada.tasa_cambio = Decimal("1.0")
+            ReservaEncontrada.subtotal = subtotal
+            ReservaEncontrada.impuestos = impuestos
+            ReservaEncontrada.descuentos = descuentos
+            ReservaEncontrada.otros_cargos = otros_cargos
+            ReservaEncontrada.precio_total = precio_total
         
         DatosAnteriores = convertir_modelo_a_dict(ReservaEncontrada)
         
@@ -201,6 +312,35 @@ class ServicioReserva:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La reserva ya esta cancelada"
             )
+        if ReservaEncontrada.estado in (EstadoReserva.COMPLETADA, EstadoReserva.NO_SHOW):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No se puede cancelar una reserva ya completada o marcada como no-show"
+            )
+
+        # Marcar pagos asociados como DISPUTADO si la reserva aún estaba pendiente o confirmada.
+        # El administrador deberá luego gestionar el reembolso según la política de cancelación.
+        if ReservaEncontrada.estado in (EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA):
+            transacciones = self.RepoTransaccion.ObtenerPorReserva(IdReserva)
+            for t in transacciones:
+                if t.tipo == TipoTransaccion.CARGO and t.estado in (
+                    EstadoPago.PENDIENTE,
+                    EstadoPago.COMPLETADO,
+                    EstadoPago.EN_PROCESO,
+                ):
+                    datos_ant_tx = convertir_modelo_a_dict(t)
+                    t.estado = EstadoPago.DISPUTADO
+                    self.RepoTransaccion.Actualizar(t)
+                    registrar_auditoria(
+                        SesionBD=self.SesionBD,
+                        TablaAfectada="transacciones_pago",
+                        Accion=AccionAuditoria.UPDATE,
+                        RegistroId=t.id,
+                        UsuarioId=self.UsuarioId,
+                        DatosAnteriores=datos_ant_tx,
+                        DatosNuevos=convertir_modelo_a_dict(t),
+                        Observaciones="Pago marcado como disputado por cancelación de reserva"
+                    )
 
         # Aplicar penalización según política de cancelación solo si el cliente ya pagó (reserva confirmada)
         if (

@@ -8,12 +8,15 @@ Routers de Habitaciones, se definen los routers de habitaciones para la API.
 - EliminarHabitacion: Elimina una habitación existente.
 - SubirImagenHabitacion: Sube una imagen para una habitación y actualiza la URL en la base de datos.
 """
-from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException, status, Form
+import logging
+from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException, status, Form, Response
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import date
 import json
 from app.core.database import ObtenerSesionBD
+
+logger = logging.getLogger(__name__)
 from app.core.dependencies import ObtenerUsuario, TienePermiso
 from app.core.storage import SubirImagenHabitacion
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate, HabitacionResponse
@@ -23,8 +26,9 @@ from app.models.usuario import Usuario
 router = APIRouter(prefix="/habitaciones", tags=["Habitaciones"])
 
 
-@router.post("", response_model=HabitacionResponse, dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
+@router.post("", response_model=HabitacionResponse, status_code=201, dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 async def CrearHabitacion(
+    response: Response,
     numero: str = Form(...),
     tipo_habitacion_id: int = Form(...),
     politica_cancelacion_id: Optional[str] = Form(None),
@@ -64,7 +68,8 @@ async def CrearHabitacion(
             DatosActualizacion = HabitacionUpdate(imagen_url=url_imagen)
             HabitacionCreada = Servicio.ActualizarHabitacion(HabitacionCreada.id, DatosActualizacion)
         except Exception as e:
-            pass
+            logger.exception("Error al subir imagen de habitación %s a Supabase: %s", HabitacionCreada.id, e)
+            response.headers["X-Imagen-Advertencia"] = "No se pudo subir la imagen; la habitación se creó correctamente. Reintente con POST /habitaciones/{id}/imagen"
     
     return HabitacionCreada
 
@@ -104,6 +109,7 @@ def ObtenerHabitacion(habitacion_id: int, SesionBD: Session = Depends(ObtenerSes
 
 @router.put("/{habitacion_id}", response_model=HabitacionResponse, dependencies=[Depends(TienePermiso("habitaciones.gestionar"))])
 async def ActualizarHabitacion(
+    response: Response,
     habitacion_id: int,
     tipo_habitacion_id: int = Form(...),
     politica_cancelacion_id: Optional[str] = Form(None),
@@ -139,7 +145,8 @@ async def ActualizarHabitacion(
             DatosImagen = HabitacionUpdate(imagen_url=url_imagen)
             HabitacionActualizada = Servicio.ActualizarHabitacion(habitacion_id, DatosImagen)
         except Exception as e:
-            pass
+            logger.exception("Error al subir imagen de habitación %s a Supabase: %s", habitacion_id, e)
+            response.headers["X-Imagen-Advertencia"] = "No se pudo actualizar la imagen. Reintente con POST /habitaciones/{id}/imagen"
     
     return HabitacionActualizada
 

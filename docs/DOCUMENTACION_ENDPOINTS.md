@@ -1,4 +1,4 @@
-# RoyalPalms API Endpoints
+# RoyalPalms API — Documentación de Endpoints
 
 ## Base URL
 ```
@@ -7,30 +7,32 @@ http://localhost:8000/api/v1
 
 ## Autenticación
 
-Todos los endpoints que requieren autenticación utilizan **Bearer Token** en el header:
+Los endpoints que requieren autenticación usan **Bearer Token** en el header:
 ```
 Authorization: Bearer {access_token}
 ```
 
+El **refresh token** se envía en el body (JSON) en los endpoints `/auth/refresh` y `/auth/logout`; no va en el header.
+
 ---
 
-## 1. Módulo de Autenticación
+## 1. Módulo de Autenticación (`/auth`)
 
 ### 1.1. Registrar Usuario
 **POST** `/auth/register`
 
-**Descripción:** Crea un nuevo usuario en el sistema.
+**Descripción:** Crea un nuevo usuario. Se le asigna automáticamente el rol **huésped**.
 
 **Autenticación:** No requerida
 
-**Request Body:**
+**Request Body (application/json):**
 ```json
 {
-  "email": "string (email válido)",
-  "nombre": "string (máx. 100 caracteres)",
-  "apellido": "string (máx. 100 caracteres)",
-  "telefono": "string (opcional, máx. 20 caracteres)",
-  "password": "string (mín. 6 caracteres recomendado)"
+  "email": "usuario@example.com",
+  "nombre": "Juan",
+  "apellido": "Pérez",
+  "telefono": "+505 1234-5678",
+  "password": "contraseña_segura"
 }
 ```
 
@@ -42,30 +44,28 @@ Authorization: Bearer {access_token}
   "nombre": "Juan",
   "apellido": "Pérez",
   "telefono": "+505 1234-5678",
-  "es_administrador": false,
   "activo": true,
-  "fecha_creacion": "2024-01-25T12:00:00"
+  "fecha_creacion": "2024-01-25T12:00:00",
+  "roles": [{"id": 4, "nombre": "Huésped"}]
 }
 ```
 
-**Errores:**
-- `400`: Email ya registrado
-- `422`: Datos de validación inválidos
+**Errores:** `400` (email ya registrado), `422` (validación)
 
 ---
 
 ### 1.2. Iniciar Sesión
 **POST** `/auth/login`
 
-**Descripción:** Autentica un usuario y devuelve un token JWT.
+**Descripción:** Autentica al usuario y devuelve access token y refresh token.
 
 **Autenticación:** No requerida
 
 **Request Body:**
 ```json
 {
-  "email": "string (email válido)",
-  "password": "string"
+  "email": "usuario@example.com",
+  "password": "contraseña"
 }
 ```
 
@@ -73,23 +73,67 @@ Authorization: Bearer {access_token}
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
+  "token_type": "bearer",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 1800
 }
 ```
 
-**Errores:**
-- `401`: Email o contraseña incorrectos
-- `403`: Usuario inactivo
-- `422`: Datos de validación inválidos
+**Errores:** `401` (credenciales incorrectas), `403` (usuario inactivo o bloqueado por intentos), `422` (validación)
 
 ---
 
-### 1.3. Obtener Usuario Actual
+### 1.3. Refrescar Token
+**POST** `/auth/refresh`
+
+**Descripción:** Obtiene un nuevo access token usando el refresh token (sin volver a enviar contraseña).
+
+**Autenticación:** No requerida (se envía el refresh token en el body)
+
+**Request Body:**
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response 200:** Mismo formato que login (`access_token`, `token_type`, `refresh_token`, `expires_in`).
+
+**Errores:** `401` (refresh token inválido o expirado)
+
+---
+
+### 1.4. Cerrar Sesión (Logout)
+**POST** `/auth/logout`
+
+**Descripción:** Revoca la sesión asociada al refresh token (cierre de sesión correcto).
+
+**Autenticación:** No requerida
+
+**Request Body:**
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response 200:**
+```json
+{
+  "detail": "Sesión cerrada correctamente"
+}
+```
+
+**Errores:** `401` si el token no es válido (opcional según implementación)
+
+---
+
+### 1.5. Obtener Usuario Actual
 **GET** `/auth/me`
 
-**Descripción:** Obtiene la información del usuario autenticado.
+**Descripción:** Devuelve el usuario autenticado con sus roles.
 
-**Autenticación:** Requerida
+**Autenticación:** Requerida (Bearer)
 
 **Response 200:**
 ```json
@@ -99,902 +143,696 @@ Authorization: Bearer {access_token}
   "nombre": "Juan",
   "apellido": "Pérez",
   "telefono": "+505 1234-5678",
-  "es_administrador": false,
   "activo": true,
-  "fecha_creacion": "2024-01-25T12:00:00"
+  "fecha_creacion": "2024-01-25T12:00:00",
+  "roles": [{"id": 4, "nombre": "Huésped"}]
 }
 ```
 
-**Errores:**
-- `401`: Token inválido o expirado
+**Errores:** `401` (token inválido o expirado)
 
 ---
 
-### 1.4. Listar Usuarios
+### 1.6. Actualizar Mi Perfil
+**PUT** `/auth/me`
+
+**Descripción:** El usuario autenticado actualiza su nombre, apellido y/o teléfono (no email ni contraseña).
+
+**Autenticación:** Requerida
+
+**Request Body (campos opcionales):**
+```json
+{
+  "nombre": "Juan",
+  "apellido": "Pérez",
+  "telefono": "+505 1234-5678"
+}
+```
+
+**Response 200:** Usuario actualizado con roles (mismo formato que GET `/auth/me`).
+
+**Errores:** `401` (no autenticado), `422` (validación)
+
+---
+
+### 1.7. Listar Usuarios
 **GET** `/auth/usuarios`
 
-**Descripción:** Obtiene una lista paginada de todos los usuarios registrados.
+**Descripción:** Lista todos los usuarios (paginado). Requiere permiso **usuarios.gestionar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `usuarios.gestionar`
 
 **Query Parameters:**
-- `Saltar` (integer, opcional): Número de registros a omitir (default: 0, mín: 0)
-- `Limite` (integer, opcional): Número máximo de registros (default: 100, mín: 1, máx: 100)
+- `Saltar` (integer, opcional): Registros a omitir (default: 0, ge: 0)
+- `Limite` (integer, opcional): Máximo de registros (default: 100, ge: 1, le: 100)
 
-**Ejemplo:**
-```
-GET /auth/usuarios?Saltar=0&Limite=10
-```
+**Response 200:** Array de usuarios con `id`, `email`, `nombre`, `apellido`, `telefono`, `activo`, `fecha_creacion`, `roles`.
+
+**Errores:** `401` (no autenticado), `403` (sin permiso usuarios.gestionar)
+
+---
+
+### 1.8. Listar Roles
+**GET** `/auth/roles`
+
+**Descripción:** Lista los roles disponibles (id, nombre) para asignar a usuarios. Útil para formularios de administración.
+
+**Autenticación:** No requerida
 
 **Response 200:**
 ```json
 [
-  {
-    "id": 1,
-    "email": "usuario@example.com",
-    "nombre": "Juan",
-    "apellido": "Pérez",
-    "telefono": "+505 1234-5678",
-    "es_administrador": false,
-    "activo": true,
-    "fecha_creacion": "2024-01-25T12:00:00"
-  }
+  {"id": 1, "nombre": "Administrador"},
+  {"id": 4, "nombre": "Huésped"}
 ]
 ```
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No es administrador
+---
+
+### 1.9. Asignar Roles a Usuario
+**PUT** `/auth/usuarios/{usuario_id}/roles`
+
+**Descripción:** Asigna los roles indicados al usuario (reemplaza los actuales). Requiere permiso **usuarios.gestionar**.
+
+**Autenticación:** Requerida + permiso `usuarios.gestionar`
+
+**Path Parameters:** `usuario_id` (integer)
+
+**Request Body:**
+```json
+{
+  "rol_ids": [1, 4]
+}
+```
+
+**Response 200:** Usuario actualizado con sus nuevos roles (mismo formato que GET `/auth/me`).
+
+**Errores:** `401`, `403` (sin permiso), `404` (usuario no encontrado), `422` (validación)
 
 ---
 
-## 2. Módulo de Habitaciones
+## 1b. Tipos de Habitación (`/tipos-habitacion`)
+
+Catálogo de tipos de habitación (Individual, Doble, Suite, etc.). Sin autenticación requerida.
+
+### 1b.1. Listar Tipos
+**GET** `/tipos-habitacion`
+
+**Response 200:** Array de tipos con `id`, `codigo`, `nombre`, `descripcion`, `capacidad_maxima`, `precio_base`, `activo`, etc.
+
+### 1b.2. Obtener Tipo por ID
+**GET** `/tipos-habitacion/{tipo_id}`
+
+**Path Parameters:** `tipo_id` (integer)
+
+**Response 200:** Objeto tipo. **Errores:** `404` si no existe.
+
+---
+
+## 2. Módulo de Habitaciones (`/habitaciones`)
 
 ### 2.1. Crear Habitación
 **POST** `/habitaciones`
 
-**Descripción:** Crea una nueva habitación en el sistema. Si se proporciona una imagen, se sube automáticamente a Supabase Storage y se asocia a la habitación.
+**Descripción:** Crea una nueva habitación. Opcionalmente se puede subir una imagen a Supabase Storage. Requiere permiso **habitaciones.gestionar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `habitaciones.gestionar`
 
 **Content-Type:** `multipart/form-data`
 
 **Request Body (FormData):**
-- `numero` (string, requerido): Número único de la habitación (máx. 10 caracteres)
-- `tipo` (string, requerido): Tipo de habitación (máx. 50 caracteres)
-- `descripcion` (string, opcional): Descripción de la habitación
-- `capacidad` (integer, requerido): Capacidad de huéspedes (mín. 1)
-- `precio_por_noche` (decimal, requerido): Precio por noche (mín. 0.01)
-- `disponible` (boolean, opcional): Disponibilidad de la habitación (default: true)
-- `archivo` (file, opcional): Archivo de imagen
-  - Formatos permitidos: JPEG, JPG, PNG, WebP
-  - Tamaño máximo: 5MB
-  - Si se proporciona, se sube automáticamente a Supabase Storage
+- `numero` (string, requerido): Número único de la habitación
+- `tipo_habitacion_id` (integer, requerido): ID del tipo en `tipos_habitacion`
+- `politica_cancelacion_id` (integer, opcional): ID de política de cancelación
+- `descripcion` (string, opcional)
+- `capacidad` (integer, requerido): Capacidad de huéspedes (mín. 1; no puede exceder la capacidad máxima del tipo)
+- `precio_por_noche` (float, requerido)
+- `estado` (string, opcional): default `"disponible"`
+- `piso` (integer, opcional)
+- `archivo` (file, opcional): Imagen (JPEG, PNG, WebP; ej. máx. 5MB)
 
-**Ejemplo con curl:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/habitaciones" \
-  -H "Authorization: Bearer {token}" \
-  -F "numero=101" \
-  -F "tipo=Individual" \
-  -F "descripcion=Habitación individual con vista al mar" \
-  -F "capacidad=1" \
-  -F "precio_por_noche=50.00" \
-  -F "disponible=true" \
-  -F "archivo=@/ruta/a/imagen.jpg"
-```
+**Response 201:** Objeto habitación con `id`, `numero`, `tipo_habitacion_id`, `tipo_nombre`, `politica_cancelacion_id`, `politica_nombre`, `descripcion`, `capacidad`, `precio_por_noche`, `estado`, `imagen_url`, `piso`, `fecha_creacion`, `fecha_actualizacion`.
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "numero": "101",
-  "tipo": "Individual",
-  "descripcion": "Habitación individual con vista al mar",
-  "capacidad": 1,
-  "precio_por_noche": 50.00,
-  "disponible": true,
-  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
-  "fecha_creacion": "2024-01-25T12:00:00"
-}
-```
-
-**Nota:** Si se proporciona una imagen, se sube automáticamente a Supabase Storage y la URL se asigna a `imagen_url`. Si la subida de imagen falla, la habitación se crea igualmente pero sin imagen.
-
-**Errores:**
-- `400`: Número de habitación ya existe, tipo de archivo no permitido, archivo demasiado grande
-- `401`: No autenticado
-- `403`: No es administrador
-- `422`: Datos de validación inválidos
-- `500`: Error al subir imagen a Supabase (si se proporcionó archivo)
+**Errores:** `400` (número duplicado, capacidad excede tipo, archivo inválido), `401`, `403`, `404` (tipo no existe), `422`
 
 ---
 
 ### 2.2. Listar Habitaciones
 **GET** `/habitaciones`
 
-**Descripción:** Obtiene una lista paginada de todas las habitaciones.
+**Descripción:** Lista habitaciones con paginación.
 
 **Autenticación:** No requerida
 
 **Query Parameters:**
-- `skip` (integer, opcional): Número de registros a omitir (default: 0, mín: 0)
-- `limit` (integer, opcional): Número máximo de registros (default: 100, mín: 1, máx: 100)
+- `Saltar` (integer, opcional): default 0, ge 0
+- `Limite` (integer, opcional): default 100, ge 1, le 100
 
-**Ejemplo:**
-```
-GET /habitaciones?skip=0&limit=10
-```
-
-**Response 200:**
-```json
-[
-  {
-    "id": 1,
-    "numero": "101",
-    "tipo": "Individual",
-    "descripcion": "Habitación individual",
-    "capacidad": 1,
-    "precio_por_noche": 50.00,
-    "disponible": true,
-    "imagen_url": null,
-    "fecha_creacion": "2024-01-25T12:00:00"
-  }
-]
-```
+**Response 200:** Array de habitaciones (incluyen `tipo_nombre`, `politica_nombre`).
 
 ---
 
 ### 2.3. Buscar Habitaciones Disponibles
 **GET** `/habitaciones/buscar`
 
-**Descripción:** Busca habitaciones disponibles en un rango de fechas específico.
+**Descripción:** Busca habitaciones disponibles en un rango de fechas (sin solapamiento con reservas no canceladas).
 
 **Autenticación:** No requerida
 
 **Query Parameters:**
-- `fecha_entrada` (date, requerido): Fecha de entrada (formato: YYYY-MM-DD)
-- `fecha_salida` (date, requerido): Fecha de salida (formato: YYYY-MM-DD)
-- `capacidad` (integer, opcional): Capacidad mínima requerida (mín: 1)
-- `tipo` (string, opcional): Tipo de habitación
+- `FechaEntrada` (date, requerido): YYYY-MM-DD
+- `FechaSalida` (date, requerido): YYYY-MM-DD
+- `Capacidad` (integer, opcional, ge 1): Capacidad mínima
+- `TipoHabitacionId` (integer, opcional): Filtrar por tipo
 
-**Ejemplo:**
-```
-GET /habitaciones/buscar?fecha_entrada=2024-02-01&fecha_salida=2024-02-05&capacidad=2
-```
+**Ejemplo:** `GET /habitaciones/buscar?FechaEntrada=2024-02-01&FechaSalida=2024-02-05&Capacidad=2`
 
-**Response 200:**
-```json
-[
-  {
-    "id": 2,
-    "numero": "102",
-    "tipo": "Doble",
-    "descripcion": "Habitación doble",
-    "capacidad": 2,
-    "precio_por_noche": 75.00,
-    "disponible": true,
-    "imagen_url": null,
-    "fecha_creacion": "2024-01-25T12:00:00"
-  }
-]
-```
+**Response 200:** Array de habitaciones disponibles (mismo formato que listar).
 
-**Errores:**
-- `400`: Fecha de entrada debe ser anterior a fecha de salida
-- `422`: Datos de validación inválidos
+**Errores:** `400` (fecha salida no posterior a entrada), `422`
 
 ---
 
 ### 2.4. Obtener Habitación por ID
 **GET** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Obtiene los detalles de una habitación específica.
+**Descripción:** Devuelve una habitación por ID.
 
 **Autenticación:** No requerida
 
-**Path Parameters:**
-- `habitacion_id` (integer): ID de la habitación
+**Path Parameters:** `habitacion_id` (integer)
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "numero": "101",
-  "tipo": "Individual",
-  "descripcion": "Habitación individual",
-  "capacidad": 1,
-  "precio_por_noche": 50.00,
-  "disponible": true,
-  "imagen_url": null,
-  "fecha_creacion": "2024-01-25T12:00:00"
-}
-```
+**Response 200:** Objeto habitación con `tipo_nombre`, `politica_nombre`.
 
-**Errores:**
-- `404`: Habitación no encontrada
+**Errores:** `404` (habitación no encontrada)
 
 ---
 
 ### 2.5. Actualizar Habitación
 **PUT** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Actualiza los datos de una habitación existente. Si se proporciona una imagen, se sube automáticamente a Supabase Storage y reemplaza la imagen anterior.
+**Descripción:** Actualiza una habitación. Si se envía `archivo`, se sube a Supabase y se actualiza `imagen_url`. Requiere permiso **habitaciones.gestionar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `habitaciones.gestionar`
 
 **Content-Type:** `multipart/form-data`
 
-**Path Parameters:**
-- `habitacion_id` (integer): ID de la habitación
+**Path Parameters:** `habitacion_id` (integer)
 
 **Request Body (FormData):**
-- `tipo` (string, requerido): Tipo de habitación
-- `descripcion` (string, opcional): Descripción de la habitación
-- `capacidad` (integer, requerido): Capacidad de huéspedes (mín. 1)
-- `precio_por_noche` (decimal, requerido): Precio por noche (mín. 0.01)
-- `disponible` (string, requerido): Disponibilidad ("true" o "false")
-- `archivo` (file, opcional): Archivo de imagen
-  - Formatos permitidos: JPEG, JPG, PNG, WebP
-  - Tamaño máximo: 5MB
-  - Si se proporciona, se sube automáticamente a Supabase Storage y reemplaza la imagen anterior
+- `tipo_habitacion_id` (integer, requerido)
+- `politica_cancelacion_id` (integer, opcional)
+- `descripcion` (string, opcional)
+- `capacidad` (integer, requerido)
+- `precio_por_noche` (float, requerido)
+- `estado` (string, opcional): default `"disponible"`
+- `archivo` (file, opcional)
 
-**Ejemplo con curl:**
-```bash
-curl -X PUT "http://localhost:8000/api/v1/habitaciones/1" \
-  -H "Authorization: Bearer {token}" \
-  -F "tipo=Individual Premium" \
-  -F "descripcion=Habitación individual actualizada" \
-  -F "capacidad=1" \
-  -F "precio_por_noche=55.00" \
-  -F "disponible=true" \
-  -F "archivo=@/ruta/a/nueva-imagen.jpg"
-```
+**Response 200:** Habitación actualizada.
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "numero": "101",
-  "tipo": "Individual Premium",
-  "descripcion": "Habitación individual actualizada",
-  "capacidad": 1,
-  "precio_por_noche": 55.00,
-  "disponible": true,
-  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_xyz789.jpg",
-  "fecha_creacion": "2024-01-25T12:00:00"
-}
-```
-
-**Nota:** Si se proporciona una imagen, se sube automáticamente a Supabase Storage y la URL se actualiza en `imagen_url`. Si la subida de imagen falla, los demás campos se actualizan igualmente.
-
-**Errores:**
-- `400`: Tipo de archivo no permitido, archivo demasiado grande
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Habitación no encontrada
-- `500`: Error al subir imagen a Supabase (si se proporcionó archivo)
+**Errores:** `400`, `401`, `403`, `404`, `422`
 
 ---
 
 ### 2.6. Eliminar Habitación
 **DELETE** `/habitaciones/{habitacion_id}`
 
-**Descripción:** Elimina una habitación del sistema. Solo se puede eliminar si todas las reservas asociadas están completadas o canceladas. Las reservas completadas/canceladas y sus pagos asociados se eliminan automáticamente.
+**Descripción:** Elimina la habitación. Solo permitido si no hay reservas activas (pendiente/confirmada); las reservas completadas/canceladas y sus transacciones se eliminan en cascada. Requiere permiso **habitaciones.gestionar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `habitaciones.gestionar`
 
-**Path Parameters:**
-- `habitacion_id` (integer): ID de la habitación
+**Path Parameters:** `habitacion_id` (integer)
 
-**Response 200:**
-```json
-{
-  "message": "Habitación eliminada correctamente"
-}
-```
+**Response 200:** `{"message": "Habitación eliminada correctamente"}`
 
-**Errores:**
-- `400`: No se puede eliminar porque tiene reservas activas (pendientes o confirmadas)
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Habitación no encontrada
-
-**Nota:** Si la habitación tiene reservas con estado "pendiente" o "confirmada", no se puede eliminar. Primero deben completarse o cancelarse esas reservas.
+**Errores:** `400` (tiene reservas activas), `401`, `403`, `404`
 
 ---
 
-### 2.7. Subir Imagen de Habitación (Endpoint Separado)
+### 2.7. Subir Imagen de Habitación
 **POST** `/habitaciones/{habitacion_id}/imagen`
 
-**Descripción:** Sube una imagen para una habitación y actualiza la URL en la base de datos. La imagen se almacena en Supabase Storage.
+**Descripción:** Sube o reemplaza la imagen de la habitación en Supabase Storage. Requiere permiso **habitaciones.gestionar**.
 
-**Nota:** Este endpoint está disponible para compatibilidad, pero se recomienda usar el endpoint de crear o actualizar habitación con el campo `archivo` en FormData, ya que sube la imagen automáticamente en una sola operación.
+**Autenticación:** Requerida + permiso `habitaciones.gestionar`
 
-**Autenticación:** Requerida (Administrador)
+**Content-Type:** `multipart/form-data`
 
-**Path Parameters:**
-- `habitacion_id` (integer): ID de la habitación
+**Path Parameters:** `habitacion_id` (integer)
 
-**Request Body (multipart/form-data):**
-- `archivo` (file, requerido): Archivo de imagen
-  - Formatos permitidos: JPEG, JPG, PNG, WebP
-  - Tamaño máximo: 5MB
-
-**Ejemplo con curl:**
-```bash
-curl -X POST "http://localhost:8000/api/v1/habitaciones/1/imagen" \
-  -H "Authorization: Bearer {token}" \
-  -F "archivo=@/ruta/a/imagen.jpg"
-```
+**Request Body:** `archivo` (file, requerido) — JPEG, PNG, WebP; tamaño máximo recomendado 5MB.
 
 **Response 200:**
 ```json
 {
   "message": "Imagen subida correctamente",
-  "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
-  "habitacion": {
-    "id": 1,
-    "numero": "101",
-    "tipo": "Individual",
-    "imagen_url": "https://tu-proyecto.supabase.co/storage/v1/object/public/habitaciones/1_abc123.jpg",
-    ...
-  }
+  "imagen_url": "https://...",
+  "habitacion": { ... }
 }
 ```
 
-**Errores:**
-- `400`: Tipo de archivo no permitido o archivo demasiado grande
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Habitación no encontrada
-- `500`: Error al subir la imagen o Supabase no configurado
-
-**Notas:**
-- Requiere que Supabase esté configurado en las variables de entorno
-- La imagen se almacena en el bucket `habitaciones` de Supabase Storage
-- El nombre del archivo se genera automáticamente: `{habitacion_id}_{uuid}.{extension}`
-- Si ya existe una imagen, se reemplaza automáticamente
+**Errores:** `400` (archivo no permitido), `401`, `403`, `404`, `500` (Supabase no configurado o error de subida)
 
 ---
 
-## 3. Módulo de Reservas
+## 3. Módulo de Reservas (`/reservas`)
 
 ### 3.1. Crear Reserva
 **POST** `/reservas`
 
-**Descripción:** Crea una nueva reserva para el usuario autenticado.
+**Descripción:** Crea una nueva reserva para el usuario autenticado. El precio se calcula en BD (procedimiento almacenado) con desglose: subtotal, impuestos, descuentos, otros_cargos, precio_total, moneda.
 
 **Autenticación:** Requerida
 
-**Request Body:**
+**Request Body (application/json):**
 ```json
 {
-  "habitacion_id": "integer",
-  "fecha_entrada": "date (formato: YYYY-MM-DD)",
-  "fecha_salida": "date (formato: YYYY-MM-DD)",
-  "numero_huespedes": "integer (mín. 1)",
-  "notas": "string (opcional, máx. 500 caracteres)"
-}
-```
-
-**Response 201:**
-```json
-{
-  "id": 1,
-  "usuario_id": 1,
   "habitacion_id": 1,
-  "numero_habitacion": "101",
-  "nombre_usuario": "Juan Pérez",
   "fecha_entrada": "2024-02-01",
   "fecha_salida": "2024-02-05",
   "numero_huespedes": 2,
-  "precio_total": 200.00,
-  "estado": "pendiente",
   "notas": "Llegada tarde",
-  "fecha_creacion": "2024-01-25T12:00:00",
-  "fecha_actualizacion": "2024-01-25T12:00:00"
+  "canal_reserva": "web",
+  "politica_cancelacion_id": null
 }
 ```
 
-**Errores:**
-- `400`: 
-  - Habitación no disponible
-  - Habitación no disponible en las fechas seleccionadas
-  - Número de huéspedes excede la capacidad
-  - Fecha de salida debe ser posterior a fecha de entrada
-- `401`: No autenticado
-- `404`: Habitación no encontrada
-- `422`: Datos de validación inválidos
+**Response 201:** Reserva con `id`, `usuario_id`, `habitacion_id`, `codigo_reserva`, `moneda`, `subtotal`, `impuestos`, `descuentos`, `otros_cargos`, `precio_total`, `precio_por_noche_snapshot`, `estado`, `numero_habitacion`, `nombre_usuario`, `fecha_creacion`, `fecha_actualizacion`, y opcionalmente `transacciones`.
+
+**Errores:** `400` (habitación no disponible, fechas inválidas, capacidad excedida), `401`, `404`, `422`
 
 ---
 
-### 3.2. Listar Mis Reservas
+### 3.2. Previsualizar Precio de Reserva
+**POST** `/reservas/previsualizar-precio`
+
+**Descripción:** Calcula y devuelve el desglose de precios (moneda, subtotal, impuestos, descuentos, otros_cargos, precio_total) **sin crear** la reserva. Útil para mostrar el total al usuario antes de confirmar.
+
+**Autenticación:** Requerida
+
+**Request Body:** Igual que crear reserva (`habitacion_id`, `fecha_entrada`, `fecha_salida`, `numero_huespedes`, `notas`, etc.).
+
+**Response 200:**
+```json
+{
+  "habitacion_id": 1,
+  "fecha_entrada": "2024-02-01",
+  "fecha_salida": "2024-02-05",
+  "numero_huespedes": 2,
+  "notas": null,
+  "moneda": "USD",
+  "subtotal": "300.00",
+  "impuestos": "30.00",
+  "descuentos": "0.00",
+  "otros_cargos": "0.00",
+  "precio_total": "330.00"
+}
+```
+
+**Errores:** `400`, `401`, `404`, `422`
+
+---
+
+### 3.3. Listar Mis Reservas
 **GET** `/reservas`
 
-**Descripción:** Obtiene todas las reservas del usuario autenticado.
+**Descripción:** Lista las reservas del usuario autenticado (paginado).
 
 **Autenticación:** Requerida
 
-**Query Parameters:**
-- `skip` (integer, opcional): Número de registros a omitir (default: 0)
-- `limit` (integer, opcional): Número máximo de registros (default: 100, máx: 100)
+**Query Parameters:** `Saltar` (default 0), `Limite` (default 100, ge 1, le 100)
 
-**Response 200:**
-```json
-[
-  {
-    "id": 1,
-    "usuario_id": 1,
-    "habitacion_id": 1,
-    "numero_habitacion": "101",
-    "nombre_usuario": "Juan Pérez",
-    "fecha_entrada": "2024-02-01",
-    "fecha_salida": "2024-02-05",
-    "numero_huespedes": 2,
-    "precio_total": 200.00,
-    "estado": "pendiente",
-    "notas": "Llegada tarde",
-    "fecha_creacion": "2024-01-25T12:00:00",
-    "fecha_actualizacion": "2024-01-25T12:00:00"
-  }
-]
-```
+**Response 200:** Array de reservas con desglose de precios, `numero_habitacion`, `nombre_usuario`, `transacciones` (opcional).
 
 ---
 
-### 3.3. Listar Todas las Reservas
+### 3.4. Listar Todas las Reservas
 **GET** `/reservas/todas`
 
-**Descripción:** Obtiene todas las reservas del sistema (solo administradores).
+**Descripción:** Lista todas las reservas del sistema. Requiere permiso **reservas.ver_todas**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `reservas.ver_todas`
 
-**Query Parameters:**
-- `skip` (integer, opcional): Número de registros a omitir (default: 0)
-- `limit` (integer, opcional): Número máximo de registros (default: 100, máx: 100)
+**Query Parameters:** `Saltar`, `Limite`
 
-**Response 200:** Array de reservas con `numero_habitacion` y `nombre_usuario` incluidos (mismo formato que 3.2)
+**Response 200:** Array de reservas (mismo formato que 3.3).
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No es administrador
+**Errores:** `401`, `403`
 
 ---
 
-### 3.4. Obtener Reserva por ID
+### 3.5. Obtener Reserva por ID
 **GET** `/reservas/{reserva_id}`
 
-**Descripción:** Obtiene los detalles de una reserva específica.
+**Descripción:** Obtiene una reserva. El cliente solo puede ver las suyas; con permiso `reservas.ver_todas` puede ver cualquiera.
 
 **Autenticación:** Requerida
 
-**Path Parameters:**
-- `reserva_id` (integer): ID de la reserva
+**Path Parameters:** `reserva_id` (integer)
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "usuario_id": 1,
-  "habitacion_id": 1,
-  "numero_habitacion": "101",
-  "nombre_usuario": "Juan Pérez",
-  "fecha_entrada": "2024-02-01",
-  "fecha_salida": "2024-02-05",
-  "numero_huespedes": 2,
-  "precio_total": 200.00,
-  "estado": "pendiente",
-  "notas": "Llegada tarde",
-  "fecha_creacion": "2024-01-25T12:00:00",
-  "fecha_actualizacion": "2024-01-25T12:00:00"
-}
-```
+**Response 200:** Reserva con desglose de precios, `numero_habitacion`, `nombre_usuario`, `transacciones`.
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No tiene permiso para ver esta reserva
-- `404`: Reserva no encontrada
+**Errores:** `401`, `403`, `404`
 
 ---
 
-### 3.5. Actualizar Reserva
-**PUT** `/reservas/{reserva_id}`
-
-**Descripción:** Actualiza una reserva existente.
-
-**Autenticación:** Requerida (Cliente puede actualizar sus propias reservas, Administrador puede actualizar cualquiera)
-
-**Path Parameters:**
-- `reserva_id` (integer): ID de la reserva
-
-**Request Body (todos los campos opcionales):**
-```json
-{
-  "fecha_entrada": "date (opcional)",
-  "fecha_salida": "date (opcional)",
-  "numero_huespedes": "integer (opcional)",
-  "estado": "string (opcional: pendiente, confirmada, cancelada, completada, no_show)",
-  "notas": "string (opcional)"
-}
-```
-
-**Response 200:** Reserva actualizada (mismo formato que 3.4)
-
-**Errores:**
-- `400`: Habitación no disponible en las nuevas fechas
-- `401`: No autenticado
-- `403`: No tiene permiso para modificar esta reserva
-- `404`: Reserva no encontrada
-
----
-
-### 3.6. Cancelar Reserva
-**POST** `/reservas/{reserva_id}/cancelar`
-
-**Descripción:** Cancela una reserva existente.
-
-**Autenticación:** Requerida (Cliente puede cancelar sus propias reservas, Administrador puede cancelar cualquiera)
-
-**Path Parameters:**
-- `reserva_id` (integer): ID de la reserva
-
-**Response 200:**
-```json
-{
-  "id": 1,
-  "estado": "cancelada",
-  ...
-}
-```
-
-**Errores:**
-- `400`: La reserva ya está cancelada
-- `401`: No autenticado
-- `403`: No tiene permiso para cancelar esta reserva
-- `404`: Reserva no encontrada
-
----
-
-### 3.7. Historial de estados de una reserva
+### 3.6. Historial de Estados de una Reserva
 **GET** `/reservas/{reserva_id}/historial-estados`
 
-**Descripción:** Obtiene el historial de cambios de estado de una reserva (trazabilidad).
+**Descripción:** Devuelve el historial de cambios de estado de la reserva (trazabilidad). Mismo criterio de acceso que ver la reserva.
 
-**Autenticación:** Requerida (mismo criterio que ver la reserva: dueño o permiso `reservas.ver_todas`)
+**Autenticación:** Requerida
 
-**Path Parameters:**
-- `reserva_id` (integer): ID de la reserva
+**Path Parameters:** `reserva_id` (integer)
 
-**Response 200:** Array de registros de historial
-```json
-[
-  {
-    "id": 1,
-    "reserva_id": 1,
-    "estado_anterior": "pendiente",
-    "estado_nuevo": "confirmada",
-    "motivo": null,
-    "cambiado_por": 2,
-    "fecha_cambio": "2024-01-25T14:00:00"
-  }
-]
-```
+**Response 200:** Array de objetos con `id`, `reserva_id`, `estado_anterior`, `estado_nuevo`, `motivo`, `cambiado_por`, `fecha_cambio`.
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No tiene permiso para ver esta reserva
-- `404`: Reserva no encontrada
+**Errores:** `401`, `403`, `404`
 
 ---
 
-## 3b. Políticas de cancelación
+### 3.7. Actualizar Reserva
+**PUT** `/reservas/{reserva_id}`
+
+**Descripción:** Actualiza una reserva. Si se cambian `fecha_entrada` o `fecha_salida`, se recalcula el desglose de precios (subtotal, impuestos, precio_total). Cliente solo puede actualizar las suyas; admin o permiso puede actualizar cualquiera.
+
+**Autenticación:** Requerida
+
+**Path Parameters:** `reserva_id` (integer)
+
+**Request Body (todos opcionales):**
+```json
+{
+  "fecha_entrada": "2024-02-01",
+  "fecha_salida": "2024-02-06",
+  "numero_huespedes": 2,
+  "estado": "pendiente",
+  "notas": "Notas actualizadas"
+}
+```
+
+**Response 200:** Reserva actualizada.
+
+**Errores:** `400` (habitación no disponible en nuevas fechas), `401`, `403`, `404`, `422`
+
+---
+
+### 3.8. Cancelar Reserva
+**POST** `/reservas/{reserva_id}/cancelar`
+
+**Descripción:** Cancela la reserva. **No se puede cancelar** si el estado es **completada** o **no_show**. Si la reserva está pendiente o confirmada, los pagos (cargos) asociados pasan a estado **disputado**; el administrador puede gestionar reembolsos después. Cliente solo puede cancelar las suyas; admin/permiso cualquiera.
+
+**Autenticación:** Requerida
+
+**Path Parameters:** `reserva_id` (integer)
+
+**Response 200:** Reserva con `estado: "cancelada"`.
+
+**Errores:** `400` (ya cancelada, o es completada/no_show), `401`, `403`, `404`
+
+---
+
+## 3b. Políticas de cancelación (`/politicas-cancelacion`)
 
 ### 3b.1. Listar políticas de cancelación
 **GET** `/politicas-cancelacion`
 
-**Descripción:** Lista las políticas de cancelación (para formularios de reserva y admin).
+**Descripción:** Lista políticas de cancelación (para formularios de reserva y admin).
 
-**Autenticación:** No requerida (puede usarse en formularios públicos)
+**Autenticación:** No requerida
 
 **Query Parameters:**
 - `SoloActivos` (boolean, default true): solo políticas activas
-- `Saltar`, `Limite`: paginación
+- `Saltar` (integer, default 0), `Limite` (integer, default 100, ge 1, le 100)
 
-**Response 200:** Array de políticas con id, nombre, descripcion, horas_anticipacion, porcentaje_penalizacion, activa, etc.
+**Response 200:** Array de políticas (id, nombre, descripcion, horas_anticipacion, porcentaje_penalizacion, activa, etc.).
 
 ### 3b.2. Obtener política por ID
 **GET** `/politicas-cancelacion/{politica_id}`
 
-**Descripción:** Obtiene una política de cancelación por ID.
+**Descripción:** Obtiene una política por ID.
+
+**Path Parameters:** `politica_id` (integer)
 
 **Response 200:** Objeto política. **Errores:** `404` si no existe.
 
 ---
 
-## 3c. Configuración del hotel
+## 3c. Configuración del hotel (`/configuracion`)
 
 ### 3c.1. Listar configuración
 **GET** `/configuracion`
 
-**Descripción:** Lista todas las claves de configuración del hotel.
+**Descripción:** Lista las claves de configuración del hotel (moneda, impuestos, intentos de login, etc.). Requiere permiso **configuracion.modificar**.
 
-**Autenticación:** Requerida, permiso `configuracion.modificar`
+**Autenticación:** Requerida + permiso `configuracion.modificar`
 
-**Response 200:** Array de items con clave, valor, tipo, descripcion, modificable, fecha_actualizacion.
+**Query Parameters:** `Saltar` (default 0), `Limite` (default 500, ge 1, le 500)
+
+**Response 200:** Array de items con `clave`, `valor`, `tipo`, `descripcion`, `modificable`, `fecha_actualizacion`.
 
 ### 3c.2. Actualizar valor de una clave
 **PATCH** `/configuracion/{clave}`
 
-**Descripción:** Actualiza el valor de una clave de configuración (solo claves modificables).
+**Descripción:** Actualiza el valor de una clave (solo si es modificable). Requiere permiso **configuracion.modificar**.
 
-**Autenticación:** Requerida, permiso `configuracion.modificar`
+**Autenticación:** Requerida + permiso `configuracion.modificar`
 
 **Path Parameters:** `clave` (string)
 
 **Request Body:**
 ```json
-{ "valor": "string" }
+{ "valor": "nuevo_valor" }
 ```
 
-**Response 200:** Item de configuración actualizado. **Errores:** `400` si la clave no es modificable, `404` si la clave no existe.
+**Response 200:** Item de configuración actualizado. **Errores:** `400` (clave no modificable), `404` (clave no existe)
 
 ---
 
-## 4. Módulo de Pagos
+## 4. Módulo de Pagos — Transacciones (`/pagos`)
 
-### 4.1. Crear Pago
+El módulo de pagos trabaja con **transacciones de pago**: una reserva puede tener varias transacciones (un cargo principal, reembolsos, ajustes, penalizaciones). Reglas: **un solo cargo total por reserva** (no pagos parciales); el monto del cargo debe coincidir con el pendiente; reembolsos generan una transacción tipo reembolso (monto negativo) y marcan el cargo original como reembolsado. Se pueden reembolsar transacciones en estado **completado** o **disputado**.
+
+### 4.1. Crear Transacción (Cargo)
 **POST** `/pagos`
 
-**Descripción:** Crea un pago para una reserva específica.
+**Descripción:** Crea una transacción de tipo **cargo** para una reserva. El usuario debe ser dueño de la reserva o tener permiso `pagos.procesar`. El monto debe ser el pendiente de la reserva (no se permiten pagos parciales).
 
-**Autenticación:** Requerida
+**Autenticación:** Requerida (propietario de la reserva o permiso)
 
-**Request Body:**
+**Request Body (application/json):**
 ```json
 {
-  "reserva_id": "integer",
-  "metodo_pago": "string (tarjeta_credito | tarjeta_debito | efectivo | transferencia)"
-}
-```
-
-**Response 201:**
-```json
-{
-  "id": 1,
   "reserva_id": 1,
-  "monto": 200.00,
+  "tipo": "cargo",
+  "monto": "330.00",
   "metodo_pago": "tarjeta_credito",
-  "estado": "pendiente",
-  "numero_transaccion": "uuid-generado",
-  "fecha_pago": null,
-  "fecha_creacion": "2024-01-25T12:00:00"
+  "numero_transaccion": null,
+  "referencia_externa": null,
+  "pasarela_pago": null,
+  "moneda": "USD",
+  "notas": null
 }
 ```
 
-**Errores:**
-- `400`: Ya existe un pago para esta reserva
-- `401`: No autenticado
-- `403`: No tiene permiso para crear un pago para esta reserva
-- `404`: Reserva no encontrada
-- `422`: Datos de validación inválidos
+**Métodos de pago válidos:** `tarjeta_credito`, `tarjeta_debito`, `efectivo`, `transferencia`, `paypal`, `cripto`
+
+**Response 201:** Transacción creada con `id`, `reserva_id`, `tipo`, `monto`, `metodo_pago`, `estado` (pendiente), `numero_transaccion`, `moneda`, `fecha_creacion`, etc.
+
+**Errores:** `400` (ya existe cargo total, monto no coincide con pendiente, reglas de negocio), `401`, `403`, `404`, `422`
 
 ---
 
-### 4.2. Listar Todos los Pagos
+### 4.2. Listar Todas las Transacciones
 **GET** `/pagos`
 
-**Descripción:** Obtiene todos los pagos del sistema (solo administradores).
+**Descripción:** Lista todas las transacciones de pago. Requiere permiso **pagos.procesar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `pagos.procesar`
 
-**Query Parameters:**
-- `skip` (integer, opcional): Número de registros a omitir (default: 0)
-- `limit` (integer, opcional): Número máximo de registros (default: 100, máx: 100)
+**Query Parameters:** `Saltar` (default 0), `Limite` (default 100, ge 1, le 100)
 
-**Response 200:**
-```json
-[
-  {
-    "id": 1,
-    "reserva_id": 1,
-    "monto": 200.00,
-    "metodo_pago": "tarjeta_credito",
-    "estado": "pendiente",
-    "numero_transaccion": "uuid",
-    "fecha_pago": null,
-    "fecha_creacion": "2024-01-25T12:00:00"
-  }
-]
-```
+**Response 200:** Array de transacciones (id, reserva_id, tipo, monto, metodo_pago, estado, numero_transaccion, moneda, fecha_pago, fecha_creacion, etc.).
 
 ---
 
-### 4.3. Obtener Pago por Reserva
+### 4.3. Listar Transacciones por Reserva
 **GET** `/pagos/reserva/{reserva_id}`
 
-**Descripción:** Obtiene el pago asociado a una reserva específica.
+**Descripción:** Lista las transacciones asociadas a una reserva. El usuario debe ser dueño de la reserva o tener permiso `pagos.procesar`.
 
 **Autenticación:** Requerida
 
-**Path Parameters:**
-- `reserva_id` (integer): ID de la reserva
+**Path Parameters:** `reserva_id` (integer)
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "reserva_id": 1,
-  "monto": 200.00,
-  "metodo_pago": "tarjeta_credito",
-  "estado": "pendiente",
-  "numero_transaccion": "uuid",
-  "fecha_pago": null,
-  "fecha_creacion": "2024-01-25T12:00:00"
-}
-```
+**Response 200:** Array de transacciones de esa reserva (cargos, reembolsos, etc.).
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No tiene permiso para ver este pago
-- `404`: No se encontró pago para esta reserva
+**Errores:** `401`, `403`, `404`
 
 ---
 
-### 4.4. Obtener Pago por ID
-**GET** `/pagos/{pago_id}`
+### 4.4. Obtener Transacción por ID
+**GET** `/pagos/{transaccion_id}`
 
-**Descripción:** Obtiene los detalles de un pago específico.
+**Descripción:** Obtiene una transacción. Mismo criterio de acceso que por reserva (dueño o permiso pagos.procesar).
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida
 
-**Path Parameters:**
-- `pago_id` (integer): ID del pago
+**Path Parameters:** `transaccion_id` (integer)
 
-**Response 200:** Mismo formato que 4.3
+**Response 200:** Objeto transacción con todos los campos.
 
-**Errores:**
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Pago no encontrado
+**Errores:** `401`, `403`, `404`
 
 ---
 
-### 4.5. Procesar Pago
-**POST** `/pagos/{pago_id}/procesar`
+### 4.5. Procesar Transacción
+**POST** `/pagos/{transaccion_id}/procesar`
 
-**Descripción:** Marca un pago como completado y actualiza el estado de la reserva a "confirmada".
+**Descripción:** Marca la transacción como **completado** y actualiza la reserva a **confirmada** si corresponde. Requiere permiso **pagos.procesar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `pagos.procesar`
 
-**Path Parameters:**
-- `pago_id` (integer): ID del pago
+**Path Parameters:** `transaccion_id` (integer)
 
-**Response 200:**
+**Response 200:** Transacción actualizada (estado completado, fecha_pago asignada).
+
+**Errores:** `400` (ya procesada, tipo no es cargo, etc.), `401`, `403`, `404`
+
+---
+
+### 4.6. Actualizar Transacción
+**PUT** `/pagos/{transaccion_id}`
+
+**Descripción:** Actualiza estado, numero_transaccion, fecha_pago o notas. Requiere permiso **pagos.procesar**.
+
+**Autenticación:** Requerida + permiso `pagos.procesar`
+
+**Path Parameters:** `transaccion_id` (integer)
+
+**Request Body (opcionales):**
 ```json
 {
-  "id": 1,
   "estado": "completado",
+  "numero_transaccion": "REF-123",
   "fecha_pago": "2024-01-25T12:30:00",
-  ...
+  "notas": "Pagado con tarjeta"
 }
 ```
 
-**Errores:**
-- `400`: El pago ya fue procesado
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Pago no encontrado
+**Response 200:** Transacción actualizada.
+
+**Errores:** `401`, `403`, `404`, `422`
 
 ---
 
-### 4.6. Actualizar Pago
-**PUT** `/pagos/{pago_id}`
+### 4.7. Reembolsar Transacción
+**POST** `/pagos/{transaccion_id}/reembolsar`
 
-**Descripción:** Actualiza los datos de un pago existente.
+**Descripción:** Reembolsa un cargo. Solo se puede reembolsar si el estado es **completado** o **disputado** (p. ej. tras cancelar una reserva los cargos pasan a disputado). Crea una nueva transacción tipo reembolso (monto negativo) y marca el cargo como **reembolsado**. La reserva asociada puede pasar a cancelada según lógica de negocio. Requiere permiso **pagos.reembolsar**.
 
-**Autenticación:** Requerida (Administrador)
+**Autenticación:** Requerida + permiso `pagos.reembolsar`
 
-**Path Parameters:**
-- `pago_id` (integer): ID del pago
+**Path Parameters:** `transaccion_id` (integer)
 
-**Request Body (todos los campos opcionales):**
-```json
-{
-  "estado": "string (opcional: pendiente | completado | rechazado | reembolsado)",
-  "numero_transaccion": "string (opcional)"
-}
-```
+**Response 200:** Transacción de reembolso creada y/o cargo actualizado.
 
-**Response 200:** Pago actualizado
-
-**Errores:**
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Pago no encontrado
+**Errores:** `400` (ya reembolsado, tipo reembolso, estado no completado/disputado), `401`, `403`, `404`
 
 ---
 
-### 4.7. Reembolsar Pago
-**POST** `/pagos/{pago_id}/reembolsar`
+## 5. Módulo de Reportes (`/reportes`)
 
-**Descripción:** Reembolsa un pago completado y cancela la reserva asociada.
+Todos los endpoints de reportes requieren permiso **reportes.ver**.
 
-**Autenticación:** Requerida (Administrador)
+### 5.1. Estadísticas de Reservas
+**GET** `/reportes/estadisticas-reservas`
 
-**Path Parameters:**
-- `pago_id` (integer): ID del pago
+**Query Parameters:** `fecha_inicio` (date, opcional), `fecha_fin` (date, opcional)
 
-**Response 200:**
-```json
-{
-  "id": 1,
-  "estado": "reembolsado",
-  ...
-}
-```
+**Response 200:** Totales por estado, ingresos, promedios en el período.
 
-**Errores:**
-- `400`: Solo se pueden reembolsar pagos completados
-- `401`: No autenticado
-- `403`: No es administrador
-- `404`: Pago no encontrado
+### 5.2. Ingresos por Período
+**GET** `/reportes/ingresos`
+
+**Query Parameters:** `fecha_inicio`, `fecha_fin`
+
+**Response 200:** Total de ingresos y desglose por método de pago.
+
+### 5.3. Ocupación
+**GET** `/reportes/ocupacion`
+
+**Query Parameters:** `fecha_inicio` (date, requerido), `fecha_fin` (date, requerido), `agrupar_por` ("habitacion" | "tipo", default "habitacion")
+
+**Response 200:** Ocupación (noches, ingresos) por habitación o por tipo.
+
+### 5.4. Log de Auditoría
+**GET** `/reportes/auditoria`
+
+**Query Parameters:** `fecha_desde`, `fecha_hasta`, `usuario_id`, `accion`, `tabla_afectada`, `Saltar`, `Limite`
+
+**Response 200:** Lista de registros de auditoría con filtros aplicados.
+
+### 5.5. Ranking de Clientes
+**GET** `/reportes/clientes`
+
+**Query Parameters:** `fecha_inicio`, `fecha_fin`, `orden` ("reservas" | "gastado", default "gastado"), `Limite` (default 50, ge 1, le 200)
+
+**Response 200:** Lista de clientes ordenada por número de reservas o por total gastado.
+
+### 5.6. Dashboard
+**GET** `/reportes/dashboard`
+
+**Query Parameters:** `fecha_inicio`, `fecha_fin`
+
+**Response 200:** Resumen agregado para panel de control (estadísticas, ingresos, ocupación, etc.).
 
 ---
 
-## Estados y Enums
+## Estados y valores
 
 ### Estados de Reserva
-- `pendiente`: Reserva creada, esperando pago
-- `confirmada`: Pago completado, reserva confirmada
-- `cancelada`: Reserva cancelada
-- `completada`: Reserva completada (check-out realizado)
+- `pendiente`: Creada, esperando pago
+- `confirmada`: Pago completado
+- `cancelada`: Cancelada
+- `completada`: Check-out realizado
+- `no_show`: No se presentó
 
-### Estados de Pago
-- `pendiente`: Pago creado, esperando procesamiento
-- `completado`: Pago procesado exitosamente
-- `rechazado`: Pago rechazado
-- `reembolsado`: Pago reembolsado
+### Tipos de Transacción
+- `cargo`: Pago a favor del hotel (monto > 0)
+- `reembolso`: Devolución (monto < 0)
+- `ajuste`, `penalizacion`, etc. según catálogo
+
+### Estados de Transacción/Pago
+- `pendiente`, `completado`, `rechazado`, `reembolsado`, `en_proceso`, `disputado`
 
 ### Métodos de Pago
-- `tarjeta_credito`
-- `tarjeta_debito`
-- `efectivo`
-- `transferencia`
+- `tarjeta_credito`, `tarjeta_debito`, `efectivo`, `transferencia`, `paypal`, `cripto`
 
 ---
 
 ## Códigos de Estado HTTP
 
 - `200 OK`: Operación exitosa
-- `201 Created`: Recurso creado exitosamente
-- `400 Bad Request`: Solicitud inválida
+- `201 Created`: Recurso creado
+- `400 Bad Request`: Solicitud inválida o regla de negocio
 - `401 Unauthorized`: No autenticado o token inválido
-- `403 Forbidden`: No tiene permisos para la operación
+- `403 Forbidden`: Sin permiso para la operación
 - `404 Not Found`: Recurso no encontrado
-- `422 Unprocessable Entity`: Error de validación de datos
+- `422 Unprocessable Entity`: Error de validación (Pydantic)
 
 ---
 
-## Notas Importantes
+## Notas importantes
 
-1. **Tokens JWT**: Los tokens expiran después del tiempo configurado en `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30 minutos)
+1. **JWT**: El access token expira según `ACCESS_TOKEN_EXPIRE_MINUTES`. Use `POST /auth/refresh` con el refresh token para obtener uno nuevo. Use `POST /auth/logout` para cerrar sesión.
 
-2. **Paginación**: Todos los endpoints de listado soportan paginación con `skip` y `limit`
+2. **RBAC**: Los endpoints protegen por **permisos** (ej. `usuarios.gestionar`, `habitaciones.gestionar`, `reservas.ver_todas`, `pagos.procesar`, `pagos.reembolsar`, `configuracion.modificar`, `reportes.ver`), no solo por rol “administrador”.
 
-3. **Validación de Fechas**: 
-   - La fecha de entrada debe ser anterior a la fecha de salida
-   - Las fechas deben estar en formato ISO 8601 (YYYY-MM-DD)
+3. **Paginación**: Los listados usan `Saltar` y `Limite` (no skip/limit).
 
-4. **Permisos**:
-   - Los clientes solo pueden ver/modificar sus propias reservas y pagos
-   - Los administradores tienen acceso completo a todos los recursos
+4. **Fechas**: Formato ISO 8601 (YYYY-MM-DD). La fecha de salida debe ser posterior a la de entrada.
 
-5. **Cálculo de Precios**: El precio total se calcula automáticamente como: `precio_por_noche × número_de_noches`
+5. **Precios**: Reservas incluyen desglose enterprise: `moneda`, `subtotal`, `impuestos`, `descuentos`, `otros_cargos`, `precio_total`. Use `POST /reservas/previsualizar-precio` para mostrar el total antes de crear la reserva.
 
-6. **Variables de Entorno**: La API utiliza las siguientes variables (ver `.env.example` en la raíz del proyecto):
-   - **Obligatorias**: `DATABASE_URL`, `SECRET_KEY`
-   - **JWT**: `ALGORITHM` (default: HS256), `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30)
-   - **API**: `API_V1_PREFIX` (default: /api/v1), `PROJECT_NAME`
-   - **Supabase** (para imágenes de habitaciones): `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET` (default: habitaciones)
-   - **Pool de BD** (opcional): `POOL_SIZE` (default: 20), `MAX_OVERFLOW` (default: 50)
+6. **Variables de entorno**: Ver `.env.example`. Obligatorias: `DATABASE_URL`, `SECRET_KEY`. Opcionales: `ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `API_V1_PREFIX`, `PROJECT_NAME`, `SUPABASE_*`, `POOL_SIZE`, `MAX_OVERFLOW`.

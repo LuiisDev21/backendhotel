@@ -6,11 +6,12 @@ from fastapi import HTTPException, status
 from datetime import timedelta, datetime, timezone
 from typing import Optional
 from app.models.usuario import Usuario
+from app.models.rol import Rol
 from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRepository
 from app.repositories.sesion_usuario_repository import SesionUsuarioRepository
 from app.repositories.intento_autenticacion_repository import IntentoAutenticacionRepository
-from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token
+from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token, UsuarioPerfilUpdate
 from app.core.security import (
     VerificarContrasena,
     HashearContra,
@@ -46,7 +47,15 @@ class ServicioUsuarios:
             telefono=DatosUsuario.telefono,
             hashed_password=ContrasenaEncriptada
         )
-        return self.Repositorio.Crear(NuevoUsuario)
+        NuevoUsuario = self.Repositorio.Crear(NuevoUsuario)
+        # Asignar rol huésped por defecto
+        rol_huesped = self.SesionBD.query(Rol).filter(
+            Rol.nombre == "huesped",
+            Rol.activo == True
+        ).first()
+        if rol_huesped:
+            NuevoUsuario = self.Repositorio.AsignarRoles(NuevoUsuario.id, [rol_huesped.id])
+        return NuevoUsuario
 
     def AutenticarUsuario(
         self,
@@ -170,6 +179,21 @@ class ServicioUsuarios:
             expires_in=int(TiempoExpiracion.total_seconds())
         )
 
+    def CerrarSesion(
+        self,
+        RefreshToken: str,
+        UsuarioId: Optional[int] = None
+    ) -> None:
+        """Revoca la sesión asociada a un refresh token (logout)."""
+        RefreshHash = HashearRefreshToken(RefreshToken)
+        Sesion = self.RepoSesion.ObtenerPorTokenHash(RefreshHash)
+        if not Sesion:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token inválido o ya cerrado"
+            )
+        self.RepoSesion.Revocar(Sesion, RevocadoPor=UsuarioId)
+
     def ObtenerUsuario(self, IdUsuario: int) -> Usuario:
         UsuarioEncontrado = self.Repositorio.ObtenerPorId(IdUsuario)
         if not UsuarioEncontrado:
@@ -178,6 +202,19 @@ class ServicioUsuarios:
                 detail="Usuario no encontrado"
             )
         return UsuarioEncontrado
+
+    def ActualizarMiPerfil(self, IdUsuario: int, Datos: UsuarioPerfilUpdate) -> Usuario:
+        """Actualiza nombre, apellido y/o teléfono del usuario (solo sus propios datos)."""
+        usuario = self.Repositorio.ObtenerPorId(IdUsuario, ConRolesPermisos=True)
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado"
+            )
+        payload = Datos.model_dump(exclude_unset=True)
+        for campo, valor in payload.items():
+            setattr(usuario, campo, valor)
+        return self.Repositorio.Actualizar(usuario)
 
     def ListarUsuarios(self, Saltar: int = 0, Limite: int = 100):
         return self.Repositorio.ObtenerTodos(Saltar=Saltar, Limite=Limite)
@@ -189,7 +226,6 @@ class ServicioUsuarios:
         AsignadoPorId: Optional[int] = None
     ) -> Usuario:
         """Asigna los roles indicados al usuario (reemplaza los actuales)."""
-        from app.models.rol import Rol
         usuario = self.Repositorio.ObtenerPorId(UsuarioId)
         if not usuario:
             raise HTTPException(

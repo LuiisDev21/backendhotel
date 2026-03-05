@@ -8,7 +8,7 @@ Repositorio de Habitacion, se define el repositorio de la habitacion con SQLAlch
 - Eliminar: Elimina una habitacion existente.
 - BuscarDisponibles: Busca las habitaciones disponibles usando procedimiento almacenado.
 """
-
+import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List
 from datetime import date
@@ -18,6 +18,8 @@ from app.models.habitacion import Habitacion
 from app.repositories.stored_procedures import StoredProcedures
 from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
 from app.models.auditoria import AccionAuditoria
+
+logger = logging.getLogger(__name__)
 
 
 class HabitacionRepository:
@@ -87,6 +89,7 @@ class HabitacionRepository:
             return self.ObtenerPorId(HabitacionNueva.id)
         except Exception as e:
             self.SesionBD.rollback()
+            logger.exception("Error en Crear habitación: %s", e)
             raise
 
     def Actualizar(self, HabitacionActualizada: Habitacion) -> Habitacion:
@@ -129,4 +132,5 @@ class HabitacionRepository:
                 .all()
             )
         except Exception as e:
+            logger.exception("Error en BuscarDisponibles (SP): %s", e)
             raise

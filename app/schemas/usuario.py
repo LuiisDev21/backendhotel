@@ -14,6 +14,13 @@ class UsuarioCreate(UsuarioBase):
     password: str
 
 
+class UsuarioPerfilUpdate(BaseModel):
+    """Datos que el usuario puede actualizar en su propio perfil (sin email ni contraseña)."""
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    telefono: Optional[str] = None
+
+
 class UsuarioLogin(BaseModel):
     email: EmailStr
     password: str

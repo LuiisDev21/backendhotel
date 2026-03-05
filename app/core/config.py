@@ -5,7 +5,7 @@ Configuración de la aplicación, se define la configuración central de la API 
 """
 
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings(BaseSettings):
@@ -20,10 +20,17 @@ class Settings(BaseSettings):
     SUPABASE_BUCKET: str = "habitaciones"
     POOL_SIZE: int = 20
     MAX_OVERFLOW: int = 50
+    CORS_ORIGINS: str = "*"
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    def get_cors_origins_list(self) -> List[str]:
+        """Devuelve la lista de orígenes para CORS. Si es '*', retorna ['*']."""
+        if not self.CORS_ORIGINS or self.CORS_ORIGINS.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()
