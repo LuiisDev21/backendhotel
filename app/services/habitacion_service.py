@@ -126,7 +126,8 @@ class ServicioHabitacion:
             RegistroId=IdHabitacion,
             UsuarioId=self.UsuarioId,
             DatosAnteriores=DatosAnteriores,
-            DatosNuevos=convertir_modelo_a_dict(HabitacionActualizada)
+            DatosNuevos=convertir_modelo_a_dict(HabitacionActualizada),
+            ResumenCambio="Habitación actualizada",
         )
         
         return HabitacionActualizada
@@ -172,7 +173,8 @@ class ServicioHabitacion:
             RegistroId=IdHabitacion,
             UsuarioId=self.UsuarioId,
             DatosAnteriores=DatosAnteriores,
-            Observaciones="Habitación eliminada"
+            Observaciones="Habitación eliminada",
+            ResumenCambio="Habitación eliminada",
         )
         
         self.Repositorio.Eliminar(HabitacionEncontrada)

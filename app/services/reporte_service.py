@@ -123,6 +123,8 @@ class ServicioReportes:
                     usuario_nombre=nombre,
                     fecha_accion=a.fecha_accion,
                     observaciones=a.observaciones,
+                    resumen_cambio=a.resumen_cambio,
+                    campos_modificados=a.campos_modificados,
                 )
             )
         return out

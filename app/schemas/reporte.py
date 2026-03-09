@@ -49,6 +49,8 @@ class AuditoriaLogItemResponse(BaseModel):
     usuario_nombre: Optional[str] = None
     fecha_accion: datetime
     observaciones: Optional[str] = None
+    resumen_cambio: Optional[str] = None
+    campos_modificados: Optional[List[str]] = None
 
     class Config:
         from_attributes = True

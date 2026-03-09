@@ -771,7 +771,17 @@ Todos los endpoints de reportes requieren permiso **reportes.ver**.
 
 **Query Parameters:** `fecha_desde`, `fecha_hasta`, `usuario_id`, `accion`, `tabla_afectada`, `Saltar`, `Limite`
 
-**Response 200:** Lista de registros de auditoría con filtros aplicados.
+**Response 200:** Lista de registros de auditoría con filtros aplicados. Cada ítem puede incluir:
+- `resumen_cambio`: resumen en una línea de lo ocurrido (ej. "Configuración max_intentos_login: 5 → 10", "Usuario desactivado por administrador").
+- `campos_modificados`: en actualizaciones, lista de nombres de campos que cambiaron (ej. `["valor", "actualizado_por"]`).
+
+**Acciones de auditoría por origen:** Las siguientes acciones se registran automáticamente y pueden filtrarse por `accion` en este endpoint:
+- **Auth:** `LOGIN` (login exitoso), `LOGOUT` (cierre de sesión), `LOGIN_FAILED` (intento fallido por usuario inexistente o contraseña incorrecta).
+- **Usuarios:** `USUARIO_BLOQUEO` (bloqueo por intentos fallidos o desactivación por admin), `USUARIO_DESBLOQUEO` (desbloqueo automático o activación por admin).
+- **Reservas:** `RESERVA_CREATE`, `RESERVA_CONFIRM` (al completar pago), `RESERVA_CANCEL`, `RESERVA_CHECKOUT` (al marcar estado completada); `RESERVA_CHECKIN` reservado para futuros endpoints.
+- **Pagos:** `CREATE`, `UPDATE`, `PAGO_PROCESS`, `PAGO_REFUND`, `PAGO_FAILED` (fallo del SP o de pasarela).
+- **Habitaciones:** `CREATE`, `UPDATE`, `DELETE`.
+- **Configuración:** `CONFIGURACION_CAMBIO` (al actualizar una clave en `/configuracion/{clave}`).
 
 ### 5.5. Ranking de Clientes
 **GET** `/reportes/clientes`

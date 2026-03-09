@@ -30,7 +30,7 @@ Sistema backend para la gestión de un hotel que permite:
 - **Políticas de cancelación**: Catálogo consultable; penalizaciones aplicadas al cancelar reservas confirmadas según la política de la habitación.
 - **Configuración**: Parámetros del hotel (moneda, impuestos, intentos de login, etc.) vía tabla `configuracion_hotel`.
 - **Reportes**: Estadísticas de reservas, ingresos, ocupación, auditoría, ranking de clientes y dashboard (administrador).
-- **Auditoría**: Registro inmutable de acciones (trigger que impide UPDATE/DELETE en la tabla de auditoría).
+- **Auditoría**: Registro inmutable de acciones (trigger que impide UPDATE/DELETE en la tabla de auditoría). Se registran LOGIN, LOGOUT, LOGIN_FAILED, USUARIO_BLOQUEO/DESBLOQUEO, RESERVA_*, PAGO_*, CONFIGURACION_CAMBIO y CRUD en habitaciones/transacciones. Consulta por `accion`, `tabla_afectada`, fechas y usuario en `GET /reportes/auditoria`.
 
 Prefijo base de la API: **`/api/v1`**.
 
