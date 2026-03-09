@@ -12,6 +12,8 @@ from app.repositories.configuracion_hotel_repository import ConfiguracionHotelRe
 from app.repositories.sesion_usuario_repository import SesionUsuarioRepository
 from app.repositories.intento_autenticacion_repository import IntentoAutenticacionRepository
 from app.schemas.usuario import UsuarioCreate, UsuarioLogin, Token, UsuarioPerfilUpdate, UsuarioAdminUpdate
+from app.core.auditoria_helper import registrar_auditoria, convertir_modelo_a_dict
+from app.models.auditoria import AccionAuditoria
 from app.core.security import (
     VerificarContrasena,
     HashearContra,
@@ -68,11 +70,23 @@ class ServicioUsuarios:
 
         UsuarioEncontrado = self.Repositorio.ObtenerPorEmail(DatosLogin.email)
         if not UsuarioEncontrado:
-            self.RepoIntento.Registrar(
+            intento = self.RepoIntento.Registrar(
                 Email=DatosLogin.email,
                 Exitoso=False,
                 IpAddress=IpAddress,
                 MotivoFallo="usuario_no_existe"
+            )
+            registrar_auditoria(
+                SesionBD=self.SesionBD,
+                TablaAfectada="intentos_autenticacion",
+                Accion=AccionAuditoria.LOGIN_FAILED,
+                RegistroId=intento.id,
+                UsuarioId=None,
+                DatosNuevos=convertir_modelo_a_dict(intento),
+                IpAddress=IpAddress,
+                UserAgent=UserAgent,
+                Observaciones="usuario_no_existe",
+                ResumenCambio="Intento de login fallido (usuario no existe)",
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -87,16 +101,44 @@ class ServicioUsuarios:
             )
 
         if not VerificarContrasena(DatosLogin.password, UsuarioEncontrado.hashed_password):
+            datos_ant_usuario = convertir_modelo_a_dict(UsuarioEncontrado)
             UsuarioEncontrado.intentos_fallidos = (UsuarioEncontrado.intentos_fallidos or 0) + 1
-            if UsuarioEncontrado.intentos_fallidos >= max_intentos:
+            bloqueamos_ahora = UsuarioEncontrado.intentos_fallidos >= max_intentos
+            if bloqueamos_ahora:
                 from datetime import timedelta as td
                 UsuarioEncontrado.bloqueado_hasta = ahora + td(minutes=minutos_bloqueo)
             self.Repositorio.Actualizar(UsuarioEncontrado)
-            self.RepoIntento.Registrar(
+            if bloqueamos_ahora:
+                registrar_auditoria(
+                    SesionBD=self.SesionBD,
+                    TablaAfectada="usuarios",
+                    Accion=AccionAuditoria.USUARIO_BLOQUEO,
+                    RegistroId=UsuarioEncontrado.id,
+                    UsuarioId=UsuarioEncontrado.id,
+                    DatosAnteriores=datos_ant_usuario,
+                    DatosNuevos=convertir_modelo_a_dict(UsuarioEncontrado),
+                    IpAddress=IpAddress,
+                    UserAgent=UserAgent,
+                    Observaciones="Bloqueo automático por intentos fallidos",
+                    ResumenCambio="Bloqueo automático por intentos fallidos",
+                )
+            intento = self.RepoIntento.Registrar(
                 Email=DatosLogin.email,
                 Exitoso=False,
                 IpAddress=IpAddress,
                 MotivoFallo="password_incorrecto"
+            )
+            registrar_auditoria(
+                SesionBD=self.SesionBD,
+                TablaAfectada="intentos_autenticacion",
+                Accion=AccionAuditoria.LOGIN_FAILED,
+                RegistroId=intento.id,
+                UsuarioId=UsuarioEncontrado.id,
+                DatosNuevos=convertir_modelo_a_dict(intento),
+                IpAddress=IpAddress,
+                UserAgent=UserAgent,
+                Observaciones="password_incorrecto",
+                ResumenCambio="Intento de login fallido (contraseña incorrecta)",
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -109,10 +151,25 @@ class ServicioUsuarios:
                 detail="Usuario inactivo"
             )
 
+        datos_ant_usuario = convertir_modelo_a_dict(UsuarioEncontrado)
         UsuarioEncontrado.intentos_fallidos = 0
         UsuarioEncontrado.bloqueado_hasta = None
         UsuarioEncontrado.fecha_ultimo_login = ahora
         self.Repositorio.Actualizar(UsuarioEncontrado)
+        if datos_ant_usuario.get("bloqueado_hasta") is not None:
+            registrar_auditoria(
+                SesionBD=self.SesionBD,
+                TablaAfectada="usuarios",
+                Accion=AccionAuditoria.USUARIO_DESBLOQUEO,
+                RegistroId=UsuarioEncontrado.id,
+                UsuarioId=UsuarioEncontrado.id,
+                DatosAnteriores=datos_ant_usuario,
+                DatosNuevos=convertir_modelo_a_dict(UsuarioEncontrado),
+                IpAddress=IpAddress,
+                UserAgent=UserAgent,
+                Observaciones="Desbloqueo automático por login exitoso",
+                ResumenCambio="Desbloqueo automático por login exitoso",
+            )
         self.RepoIntento.Registrar(
             Email=DatosLogin.email,
             Exitoso=True,
@@ -127,12 +184,23 @@ class ServicioUsuarios:
         RefreshToken = GenerarRefreshToken()
         RefreshHash = HashearRefreshToken(RefreshToken)
         FechaExpiracionRefresh = ahora + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-        self.RepoSesion.Crear(
+        sesion_creada = self.RepoSesion.Crear(
             UsuarioId=UsuarioEncontrado.id,
             RefreshTokenHash=RefreshHash,
             FechaExpiracion=FechaExpiracionRefresh,
             IpAddress=IpAddress,
             UserAgent=UserAgent
+        )
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="sesiones_usuario",
+            Accion=AccionAuditoria.LOGIN,
+            RegistroId=None,
+            UsuarioId=UsuarioEncontrado.id,
+            DatosNuevos=convertir_modelo_a_dict(sesion_creada),
+            IpAddress=IpAddress,
+            UserAgent=UserAgent,
+            ResumenCambio="Inicio de sesión",
         )
         return Token(
             access_token=TokenAcceso,
@@ -192,7 +260,20 @@ class ServicioUsuarios:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Refresh token inválido o ya cerrado"
             )
+        datos_anteriores = convertir_modelo_a_dict(Sesion)
         self.RepoSesion.Revocar(Sesion, RevocadoPor=UsuarioId)
+        self.SesionBD.refresh(Sesion)
+        registrar_auditoria(
+            SesionBD=self.SesionBD,
+            TablaAfectada="sesiones_usuario",
+            Accion=AccionAuditoria.LOGOUT,
+            RegistroId=None,
+            UsuarioId=Sesion.usuario_id,
+            DatosAnteriores=datos_anteriores,
+            DatosNuevos=convertir_modelo_a_dict(Sesion),
+            Observaciones="Cierre de sesión",
+            ResumenCambio="Cierre de sesión",
+        )
 
     def ObtenerUsuario(self, IdUsuario: int) -> Usuario:
         UsuarioEncontrado = self.Repositorio.ObtenerPorId(IdUsuario)
@@ -261,7 +342,36 @@ class ServicioUsuarios:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No puedes desactivar tu propia cuenta"
             )
+        datos_anteriores = convertir_modelo_a_dict(usuario)
         payload = Datos.model_dump(exclude_unset=True)
         for campo, valor in payload.items():
             setattr(usuario, campo, valor)
-        return self.Repositorio.Actualizar(usuario)
+        usuario_actualizado = self.Repositorio.Actualizar(usuario)
+        if "activo" in payload:
+            activo_antes = datos_anteriores.get("activo")
+            activo_despues = usuario_actualizado.activo
+            if activo_antes is True and activo_despues is False:
+                registrar_auditoria(
+                    SesionBD=self.SesionBD,
+                    TablaAfectada="usuarios",
+                    Accion=AccionAuditoria.USUARIO_BLOQUEO,
+                    RegistroId=UsuarioId,
+                    UsuarioId=AdministradorId,
+                    DatosAnteriores=datos_anteriores,
+                    DatosNuevos=convertir_modelo_a_dict(usuario_actualizado),
+                    Observaciones="Usuario desactivado por administrador",
+                    ResumenCambio="Usuario desactivado por administrador",
+                )
+            elif activo_antes is False and activo_despues is True:
+                registrar_auditoria(
+                    SesionBD=self.SesionBD,
+                    TablaAfectada="usuarios",
+                    Accion=AccionAuditoria.USUARIO_DESBLOQUEO,
+                    RegistroId=UsuarioId,
+                    UsuarioId=AdministradorId,
+                    DatosAnteriores=datos_anteriores,
+                    DatosNuevos=convertir_modelo_a_dict(usuario_actualizado),
+                    Observaciones="Usuario activado por administrador",
+                    ResumenCambio="Usuario activado por administrador",
+                )
+        return usuario_actualizado

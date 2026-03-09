@@ -497,6 +497,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
     endpoint          VARCHAR(255),
     fecha_accion      TIMESTAMPTZ      DEFAULT NOW(),
     observaciones     TEXT,
+    resumen_cambio    TEXT,
+    campos_modificados JSONB,
     CONSTRAINT fk_auditoria_accion_catalogo
         FOREIGN KEY (accion) REFERENCES catalogo_accion_auditoria(codigo)
 );
@@ -505,6 +507,8 @@ COMMENT ON TABLE  auditoria IS 'Registro inmutable de todas las acciones del sis
 COMMENT ON COLUMN auditoria.datos_anteriores IS 'Snapshot JSON del registro antes de la modificación.';
 COMMENT ON COLUMN auditoria.datos_nuevos     IS 'Snapshot JSON del registro después de la modificación.';
 COMMENT ON COLUMN auditoria.endpoint         IS 'Endpoint de la API que originó la acción.';
+COMMENT ON COLUMN auditoria.resumen_cambio    IS 'Resumen legible en una línea de lo ocurrido.';
+COMMENT ON COLUMN auditoria.campos_modificados IS 'En actualizaciones: nombres de campos que cambiaron (array JSON).';
 
 CREATE INDEX IF NOT EXISTS idx_auditoria_tabla      ON auditoria(tabla_afectada);
 CREATE INDEX IF NOT EXISTS idx_auditoria_registro   ON auditoria(registro_id);

@@ -3,6 +3,11 @@ Servicio de Transacciones de pago (1:N por reserva).
 - Crear transacción (cargo/depósito).
 - Procesar (marcar completado y confirmar reserva si suma >= precio_total).
 - Reembolso como nueva transacción tipo reembolso.
+
+Auditoría PAGO_FAILED: se registra en StoredProcedures.ProcesarPago ante fallo del SP.
+En futuras integraciones con pasarelas externas (Stripe, etc.), ante fallo definitivo
+del cobro llamar a registrar_auditoria con Accion=AccionAuditoria.PAGO_FAILED,
+TablaAfectada="transacciones_pago" y Observaciones con referencia de la pasarela (sin datos sensibles).
 """
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -83,7 +88,8 @@ class ServicioTransaccionPago:
             RegistroId=creada.id,
             UsuarioId=UsuarioId or self.UsuarioId,
             DatosNuevos=convertir_modelo_a_dict(creada),
-            Observaciones="Transacción creada"
+            Observaciones="Transacción creada",
+            ResumenCambio="Transacción creada",
         )
         return creada
 
@@ -154,8 +160,20 @@ class ServicioTransaccionPago:
         if reserva and reserva.estado != EstadoReserva.CANCELADA:
             suma = self.Repositorio.SumaCargosCompletadosPorReserva(reserva.id)
             if suma >= reserva.precio_total:
+                datos_ant_reserva = convertir_modelo_a_dict(reserva)
                 reserva.estado = EstadoReserva.CONFIRMADA
-                self.RepositorioReserva.Actualizar(reserva)
+                reserva_confirmada = self.RepositorioReserva.Actualizar(reserva)
+                registrar_auditoria(
+                    SesionBD=self.SesionBD,
+                    TablaAfectada="reservas",
+                    Accion=AccionAuditoria.RESERVA_CONFIRM,
+                    RegistroId=reserva.id,
+                    UsuarioId=UsuarioId or self.UsuarioId,
+                    DatosAnteriores=datos_ant_reserva,
+                    DatosNuevos=convertir_modelo_a_dict(reserva_confirmada),
+                    Observaciones="Reserva confirmada al completar el pago",
+                    ResumenCambio="Reserva confirmada al completar el pago",
+                )
         registrar_auditoria(
             SesionBD=self.SesionBD,
             TablaAfectada="transacciones_pago",
@@ -163,7 +181,8 @@ class ServicioTransaccionPago:
             RegistroId=IdTransaccion,
             UsuarioId=UsuarioId or self.UsuarioId,
             DatosNuevos=convertir_modelo_a_dict(t),
-            Observaciones="Pago procesado"
+            Observaciones="Pago procesado",
+            ResumenCambio="Pago procesado",
         )
         return t
 
@@ -186,7 +205,8 @@ class ServicioTransaccionPago:
             RegistroId=IdTransaccion,
             UsuarioId=UsuarioId or self.UsuarioId,
             DatosAnteriores=datos_ant,
-            DatosNuevos=convertir_modelo_a_dict(t)
+            DatosNuevos=convertir_modelo_a_dict(t),
+            ResumenCambio="Transacción de pago actualizada",
         )
         return t
 
@@ -241,6 +261,7 @@ class ServicioTransaccionPago:
             RegistroId=creada.id,
             UsuarioId=UsuarioId or self.UsuarioId,
             DatosNuevos=convertir_modelo_a_dict(creada),
-            Observaciones="Reembolso registrado"
+            Observaciones="Reembolso registrado",
+            ResumenCambio="Reembolso registrado",
         )
         return creada

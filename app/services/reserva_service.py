@@ -1,4 +1,4 @@
-""" 
+"""
 Servicio de Reservas, se define el servicio de reservas con SQLAlchemy.
 - CalcularPrecioTotal: Calcula el precio total de una reserva.
 - CrearReserva: Crea una nueva reserva.
@@ -7,6 +7,10 @@ Servicio de Reservas, se define el servicio de reservas con SQLAlchemy.
 - ListarTodasReservas: Lista todas las reservas.
 - ActualizarReserva: Actualiza una reserva existente.
 - CancelarReserva: Cancela una reserva existente.
+
+Auditoría: RESERVA_CHECKOUT se registra al marcar estado COMPLETADA en ActualizarReserva.
+Para un futuro endpoint de check-in (ej. POST /reservas/{id}/checkin), registrar
+AccionAuditoria.RESERVA_CHECKIN con TablaAfectada="reservas", RegistroId=id_reserva y snapshots.
 """
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -300,8 +304,21 @@ class ServicioReserva:
             RegistroId=IdReserva,
             UsuarioId=self.UsuarioId,
             DatosAnteriores=DatosAnteriores,
-            DatosNuevos=convertir_modelo_a_dict(ReservaActualizada)
+            DatosNuevos=convertir_modelo_a_dict(ReservaActualizada),
+            ResumenCambio="Reserva actualizada",
         )
+        if "estado" in DatosActualizacion and DatosActualizacion["estado"] == EstadoReserva.COMPLETADA:
+            registrar_auditoria(
+                SesionBD=self.SesionBD,
+                TablaAfectada="reservas",
+                Accion=AccionAuditoria.RESERVA_CHECKOUT,
+                RegistroId=IdReserva,
+                UsuarioId=self.UsuarioId,
+                DatosAnteriores=DatosAnteriores,
+                DatosNuevos=convertir_modelo_a_dict(ReservaActualizada),
+                Observaciones="Reserva marcada como completada (checkout)",
+                ResumenCambio="Reserva marcada como completada (checkout)",
+            )
         
         return ReservaActualizada
 
@@ -339,7 +356,8 @@ class ServicioReserva:
                         UsuarioId=self.UsuarioId,
                         DatosAnteriores=datos_ant_tx,
                         DatosNuevos=convertir_modelo_a_dict(t),
-                        Observaciones="Pago marcado como disputado por cancelación de reserva"
+                        Observaciones="Pago marcado como disputado por cancelación de reserva",
+                        ResumenCambio="Pago marcado como disputado por cancelación de reserva",
                     )
 
         # Aplicar penalización según política de cancelación solo si el cliente ya pagó (reserva confirmada)
@@ -376,7 +394,8 @@ class ServicioReserva:
                             RegistroId=transaccion_penalizacion.id,
                             UsuarioId=self.UsuarioId,
                             DatosNuevos=convertir_modelo_a_dict(transaccion_penalizacion),
-                            Observaciones="Penalización por cancelación"
+                            Observaciones="Penalización por cancelación",
+                            ResumenCambio="Penalización por cancelación",
                         )
 
         DatosAnteriores = convertir_modelo_a_dict(ReservaEncontrada)
@@ -392,7 +411,8 @@ class ServicioReserva:
             UsuarioId=self.UsuarioId,
             DatosAnteriores=DatosAnteriores,
             DatosNuevos=convertir_modelo_a_dict(ReservaCancelada),
-            Observaciones="Reserva cancelada"
+            Observaciones="Reserva cancelada",
+            ResumenCambio="Reserva cancelada",
         )
 
         return ReservaCancelada

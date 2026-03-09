@@ -45,5 +45,7 @@ class Auditoria(Base):
     endpoint = Column(String(255), nullable=True)
     fecha_accion = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     observaciones = Column(Text, nullable=True)
+    resumen_cambio = Column(Text, nullable=True)
+    campos_modificados = Column(JSONB, nullable=True)
 
     usuario = relationship("Usuario", back_populates="auditorias")

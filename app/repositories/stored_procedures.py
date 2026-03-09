@@ -6,6 +6,8 @@ from sqlalchemy import text
 from typing import Optional, List, Dict, Any
 from datetime import date
 from decimal import Decimal
+from app.core.auditoria_helper import registrar_auditoria
+from app.models.auditoria import AccionAuditoria
 
 
 class StoredProcedures:
@@ -157,24 +159,37 @@ class StoredProcedures:
                 :usuario_id
             )
         """)
-        result = self.SesionBD.execute(
-            query,
-            {
-                "reserva_id": ReservaId,
-                "monto": float(Monto),
-                "metodo_pago": MetodoPago,
-                "tipo": Tipo,
-                "numero_transaccion": NumeroTransaccion,
-                "referencia_externa": ReferenciaExterna,
-                "pasarela_pago": PasarelaPago,
-                "usuario_id": UsuarioId
-            }
-        )
-        self.SesionBD.commit()
-        row = result.fetchone()
-        if row:
-            return dict(row._mapping)
-        raise Exception("No se pudo procesar el pago")
+        params = {
+            "reserva_id": ReservaId,
+            "monto": float(Monto),
+            "metodo_pago": MetodoPago,
+            "tipo": Tipo,
+            "numero_transaccion": NumeroTransaccion,
+            "referencia_externa": ReferenciaExterna,
+            "pasarela_pago": PasarelaPago,
+            "usuario_id": UsuarioId
+        }
+        try:
+            result = self.SesionBD.execute(query, params)
+            self.SesionBD.commit()
+            row = result.fetchone()
+            if row:
+                return dict(row._mapping)
+            raise Exception("No se pudo procesar el pago")
+        except Exception as e:
+            self.SesionBD.rollback()
+            observacion = f"reserva_id={ReservaId}, monto={Monto}, metodo_pago={MetodoPago}, tipo={Tipo}: {str(e)[:200]}"
+            msg_corto = str(e)[:80] if str(e) else "Error en SP"
+            registrar_auditoria(
+                SesionBD=self.SesionBD,
+                TablaAfectada="transacciones_pago",
+                Accion=AccionAuditoria.PAGO_FAILED,
+                RegistroId=None,
+                UsuarioId=UsuarioId,
+                Observaciones=observacion,
+                ResumenCambio=f"Pago fallido: {msg_corto}",
+            )
+            raise
 
     def ObtenerEstadisticasReservas(
         self,

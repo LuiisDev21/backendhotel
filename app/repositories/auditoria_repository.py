@@ -30,7 +30,9 @@ class AuditoriaRepository:
         DatosNuevos: Optional[dict] = None,
         IpAddress: Optional[str] = None,
         UserAgent: Optional[str] = None,
-        Observaciones: Optional[str] = None
+        Observaciones: Optional[str] = None,
+        ResumenCambio: Optional[str] = None,
+        CamposModificados: Optional[list] = None
     ) -> Auditoria:
         """Registra una acción de auditoría usando inserción directa (más confiable)."""
         try:
@@ -47,7 +49,9 @@ class AuditoriaRepository:
                 datos_nuevos=DatosNuevos,  # SQLAlchemy convierte automáticamente
                 ip_address=IpAddress,
                 user_agent=UserAgent,
-                observaciones=Observaciones
+                observaciones=Observaciones,
+                resumen_cambio=ResumenCambio,
+                campos_modificados=CamposModificados
             )
             
             self.SesionBD.add(RegistroAuditoria)

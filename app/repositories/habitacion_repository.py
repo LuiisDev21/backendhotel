@@ -83,6 +83,7 @@ class HabitacionRepository:
                 RegistroId=HabitacionNueva.id,
                 UsuarioId=UsuarioId,
                 DatosNuevos=convertir_modelo_a_dict(HabitacionNueva),
+                ResumenCambio="Habitación creada",
             )
             self.SesionBD.commit()
             self.SesionBD.refresh(HabitacionNueva)
