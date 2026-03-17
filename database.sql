@@ -1022,6 +1022,7 @@ RETURNS TABLE (
     reservas_confirmadas BIGINT,
     reservas_canceladas  BIGINT,
     reservas_completadas BIGINT,
+    reservas_no_show     BIGINT,
     ingresos_totales     NUMERIC,
     promedio_reserva     NUMERIC,
     tasa_cancelacion     NUMERIC
@@ -1034,6 +1035,7 @@ BEGIN
         COUNT(*) FILTER (WHERE r.estado = 'confirmada')::BIGINT,
         COUNT(*) FILTER (WHERE r.estado = 'cancelada')::BIGINT,
         COUNT(*) FILTER (WHERE r.estado = 'completada')::BIGINT,
+        COUNT(*) FILTER (WHERE r.estado = 'no_show')::BIGINT,
         COALESCE(SUM(r.precio_total)  FILTER (WHERE r.estado != 'cancelada'), 0),
         COALESCE(AVG(r.precio_total)  FILTER (WHERE r.estado != 'cancelada'), 0),
         CASE WHEN COUNT(*) > 0

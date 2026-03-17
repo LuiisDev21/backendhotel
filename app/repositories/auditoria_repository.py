@@ -139,23 +139,38 @@ class AuditoriaRepository:
         Limite: int = 100
     ) -> List[Auditoria]:
         """Lista registros de auditoría con filtros opcionales."""
-        query = self.SesionBD.query(Auditoria).options(joinedload(Auditoria.usuario))
-        if FechaDesde is not None:
-            query = query.filter(Auditoria.fecha_accion >= FechaDesde)
-        if FechaHasta is not None:
-            query = query.filter(Auditoria.fecha_accion <= FechaHasta)
-        if UsuarioId is not None:
-            query = query.filter(Auditoria.usuario_id == UsuarioId)
-        if Accion is not None:
-            query = query.filter(Auditoria.accion == Accion)
-        if TablaAfectada is not None:
-            query = query.filter(Auditoria.tabla_afectada == TablaAfectada)
+        query = self._AplicarFiltros(
+            self.SesionBD.query(Auditoria).options(joinedload(Auditoria.usuario)),
+            FechaDesde=FechaDesde,
+            FechaHasta=FechaHasta,
+            UsuarioId=UsuarioId,
+            Accion=Accion,
+            TablaAfectada=TablaAfectada,
+        )
         return (
             query.order_by(Auditoria.fecha_accion.desc())
             .offset(Saltar)
             .limit(Limite)
             .all()
         )
+
+    def ContarConFiltros(
+        self,
+        FechaDesde: Optional[datetime] = None,
+        FechaHasta: Optional[datetime] = None,
+        UsuarioId: Optional[int] = None,
+        Accion: Optional[str] = None,
+        TablaAfectada: Optional[str] = None,
+    ) -> int:
+        query = self._AplicarFiltros(
+            self.SesionBD.query(Auditoria),
+            FechaDesde=FechaDesde,
+            FechaHasta=FechaHasta,
+            UsuarioId=UsuarioId,
+            Accion=Accion,
+            TablaAfectada=TablaAfectada,
+        )
+        return int(query.count())
 
     def ObtenerMasReciente(
         self, 
@@ -168,3 +183,17 @@ class AuditoriaRepository:
         if RegistroId:
             query = query.filter(Auditoria.registro_id == RegistroId)
         return query.order_by(Auditoria.fecha_accion.desc()).first()
+
+    @staticmethod
+    def _AplicarFiltros(query, FechaDesde=None, FechaHasta=None, UsuarioId=None, Accion=None, TablaAfectada=None):
+        if FechaDesde is not None:
+            query = query.filter(Auditoria.fecha_accion >= FechaDesde)
+        if FechaHasta is not None:
+            query = query.filter(Auditoria.fecha_accion <= FechaHasta)
+        if UsuarioId is not None:
+            query = query.filter(Auditoria.usuario_id == UsuarioId)
+        if Accion is not None:
+            query = query.filter(Auditoria.accion == Accion)
+        if TablaAfectada is not None:
+            query = query.filter(Auditoria.tabla_afectada == TablaAfectada)
+        return query
